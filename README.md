@@ -15,6 +15,8 @@ WIthin this repository there are three folders:
 
 **3. Annual Reports** contains 2019 and 2020 annual reports.
 
-### *Note some data files were too large to be included here:
-Phytoplankton,
+_*Note some data files were too large to be included here:_
+
+Phytoplankton
+
 Water Temperature
