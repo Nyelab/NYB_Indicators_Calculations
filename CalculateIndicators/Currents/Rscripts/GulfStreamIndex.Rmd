@@ -1,0 +1,59 @@
+## Gulf Stream Index
+See [this link](https://noaa-edab.github.io/tech-doc/gulf-stream-index.html) for a detailed description of this indicator. It is available from the [NOAA github page at the following link](https://github.com/NOAA-EDAB/ecodata) from here you click on the ['data' folder](https://github.com/NOAA-EDAB/ecodata/tree/master/data) and then [the 'gsi.Rda'](https://github.com/NOAA-EDAB/ecodata/blob/master/data/gsi.rda) file which will give you a chance to 'view raw' and once you click this it will download to a file on your computer. 
+
+
+NOTE: In 2018 when I downloeaded it it went from 1954 to 2017
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/Currents/Data")
+load("2018_gsi.Rda")
+plot(gsi$Time, gsi$Value)
+gsi$year<-floor(gsi$Time)
+
+gsi_yearly<-aggregate(Value ~ year, gsi, FUN = mean)
+plot(gsi_yearly$year, gsi_yearly$Value, type = "b")
+min(gsi_yearly$year)
+
+GSI_2018<-data.frame(Year = gsi_yearly$year,
+               Variable = "GSI_2018",
+               Val = gsi_yearly$Value,
+               Loc = "NES",
+               N = "NA")
+```
+
+
+NOTE: In 2020 when I dowloaded it it went from
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/Currents/Data")
+load("2020_gsi.Rda")
+plot(gsi$Time, gsi$Value)
+gsi$year<-floor(gsi$Time)
+
+gsi_yearly<-aggregate(Value ~ year, gsi, FUN = mean)
+plot(gsi_yearly$year, gsi_yearly$Value, type = "b")
+min(gsi_yearly$year)
+max(gsi_yearly)
+
+GSI_2020<-data.frame(Year = gsi_yearly$year,
+               Variable = "GSI_2020",
+               Val = gsi_yearly$Value,
+               Loc = "NES",
+               N = "NA")
+```
+
+
+Combine both and write to disk
+```{r}
+GSI<-rbind(GSI_2018, GSI_2020)
+plot(GSI[GSI$Variable == "GSI_2018", "Year"],
+     GSI[GSI$Variable == "GSI_2018", "Val"], type = "l")
+
+points(GSI[GSI$Variable == "GSI_2020", "Year"],
+     GSI[GSI$Variable == "GSI_2020", "Val"], col = "red", type ="l")
+setwd("~/Desktop/NYB Indicators/Final_timeseries")
+write.csv(GSI, "GulfStreamIndex_AUG_11_2020.csv")
+```
+
+
+
+
+
