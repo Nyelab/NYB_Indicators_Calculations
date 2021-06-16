@@ -1,0 +1,293 @@
+### What this does
+This script tells you how to get data from the World Ocean Database website and then re-format it into a dataframe in R, keeping only some of the variables. Each CTD cast is reduced to a row of data. The script takes a very long time because of some for loops, but once you do it then dataset can be used in a variety of ways for indicators. 
+
+Kurtcheim@gmail.com
+Last Updated June 24, 2020
+
+### World Ocean Database CTD dataset
+The world ocean dataset has an extensive record of CTD casts. As of September 2019, there are about 80,000 casts completed in the NE US Continental shelf large marine ecosystem. These can be used for a variety of indicators.
+
+### Get the data
+Please note that FOR THIS CODE TO WORK, the steps must be taken exactly as follows so data downloaded are in the same format. Also, if the data formatting of WOD changes, this code will (most likely) stop working. 
+
+To get the WOD data, you need to go to the [world ocean database select and search](https://www.nodc.noaa.gov/OC5/SELECT/dbsearch/dbsearch.html). What I did (June 23, 2020) was to click the **Geographic coordinates** check box as well as the **dataset** check box; then I clicked 'build a query'. 
+
+From here, I de-selected all of the available data types EXCEPT for 'High resolution CTD/XCTD (CTD)'. I didnt want to deal with all that shit, so I just got the CTD casts and entered the geographic coordiantes as follows 
+
+Western edge = -78.00 
+Eastern edge = -64.00
+Northern edge = 45.00
+Southern edge = 35.00.  
+
+Clicking the **get an inventory** tab will take you to a page where it says how much data are avaialbe for that region, it may take a few minutes for the page to load. If you are happy click the **download data** tab and you will then have some choices.
+
+For the following scripts to work with new datasets, you must choose the netCDF ragged array format on the right hand side of the page by clicking the bullet point thing. This is the ONLY thing you need to click, then go to the bottom and enter your email address. Click extract data and the dataset will be available at a web link in a few hours, you will receive an email with this link to download the file(s). When I just did it, it provided the data in two seperate files. 
+
+### Get the data into a useable format
+THe data is weird to deal with. There may be i CTD casts in the dataset and at each of those casts there may be j depths at which measurments are made. Since j (number of depths for cast i) will be different for every i (an individual cast), it doesn not make sense to have a symetrical array because there would be alot of wasted space (i.e., Lat x Long x deepest depth in the entire dataset...with many elements of the matrix empty).Moreover, its not really gridded at regular lat long intervals so any sort of raster grid format wouldnt work.
+
+The 'ragged' array format is used and the important thing to know is that some varaibles are recorded at the 'cast' level (i) (like lat, long, date, time etc.) which are pretty simple to use and get what you need from them. The measuremenents of interest are more tricky (i.e., temperature of cast i at depth j...). The measured values like this (temp, salinity...) are stored as single vectors with a 'key' that tells you which elemets of the vector relate to which 'cast'. Basically; 
+
+If cast 1 (i = 1) has 10 depths and associated temperature measurements (j = 10), then the 'key' variable named "temperature_row_size" will be 10. Therefore, you know the first 10 elements of the very long temperature vector relate to cast 1 and the depths in the 'z' variable (which stores depths, and has a "z_row_size" key). The next cast (i = 2) might say then that the "temperature_row_size" is 20, indicating there are 20 temperature measurements in the second cast. To find these you need elements 11 - 30 of the temperature vector (cumsum of all previous "temperature_row_size" + 1). Thats pretty much it for the entire dataset, but it makes it really wierd to get what you need from it. 
+
+
+
+This script brings in the datasets and shows what they look like. 
+```{r}
+library(ncdf4)#the packge for .nc files
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
+
+###These are the files that you get emaild from WODselect website
+file1<-("ocldb1592943418.11094_CTD.nc")#straight from WODselect download site
+file2<-("ocldb1592943418.11094_CTD2.nc")#straight from WODselect download site
+con1 <- ncdf4::nc_open(file1)#the file connection
+con2<-ncdf4::nc_open(file2)#the file connection
+
+###heres just a look at the dataset, a map with points colored according to botom depth
+cfunk<-colorRampPalette(c("red","blue"))
+col = cfunk(100)[as.numeric(cut(as.vector(ncdf4::ncvar_get(con1, "Bottom_Depth")), breaks = 100))]
+plot(as.vector(ncdf4::ncvar_get(con1, "lon")),as.vector(ncdf4::ncvar_get(con1, "lat")),
+     col = col, pch = 19, cex = .1)#locations
+
+###here is the second dataset
+col = cfunk(100)[as.numeric(cut(as.vector(ncdf4::ncvar_get(con2, "Bottom_Depth")), breaks = 100))]
+plot(as.vector(ncdf4::ncvar_get(con2, "lon")),as.vector(ncdf4::ncvar_get(con2, "lat")),
+     col = col, pch = 19, cex = .1)#locations
+###IF THIS PLOT DOESNT SHOW WHAT YOU EXPECTED THEN YOU PROBABLY
+###DID NOT DOWNLOAD THE DATA CORRECTLY
+```
+
+
+### Create a new dataset for indicator calculation
+
+The following script takes the ragged array netCDF files, and re-formats into a more easily used data.frame to calculate indicators. The basic steps are **(part 1)** use the netCDF connections (con1 and con2) to create a 'list' of data.frames, each storing a 'typical' CTD cast (i.e., first column is depth, next is temp, salinity, etc.) that are easy to work with by indexing. Next, **(part 2)** takes these casts and re-shuffles them into a SINGLE data.frame that contains one row per cast, and the information needed (surf_temp, surf_salin, surf_density,...so on and so forth). **Part 3** labels each of these casts according to their location (i.e., EPU, NYB, node) and **Part 4** writes the file to disck for later use in indicator calculations. 
+
+Running the script takes awhile and may crash your comptuer :).
+
+### Part 1
+Make a data frame that has the cast information; this is a function that will work if you only give it the connection (see above, con1 and con2). It results in a data.frame with the needed info to re-create casts.
+
+
+```{r}
+make_casts<-function(connection){
+ddd<-data.frame(platform = as.vector(ncdf4::ncvar_get(connection, "Platform")),
+                originators_cruise_identifier = as.vector(ncdf4::ncvar_get(connection, "originators_cruise_identifier")),
+                wod_unique_cast = as.vector(ncdf4::ncvar_get(connection, "wod_unique_cast")),
+                Institute = as.vector(ncdf4::ncvar_get(connection, "Institute")),
+                z_row_size = as.vector(ncdf4::ncvar_get(connection, "z_row_size")),
+                Temperature_row_size = as.vector(ncdf4::ncvar_get(connection, "Temperature_row_size")),
+                Salinity_row_size = as.vector(ncdf4::ncvar_get(connection, "Salinity_row_size")),
+                lat = as.vector(ncdf4::ncvar_get(connection, "lat")),
+                lon = as.vector(ncdf4::ncvar_get(connection, "lon")),
+                date = as.Date(as.character(as.vector(ncdf4::ncvar_get(connection, "date"))), format = "%Y%m%d"),
+                bot_depth = as.vector(ncdf4::ncvar_get(connection, "Bottom_Depth")),
+                Pressure_row_size = as.vector(ncdf4::ncvar_get(connection, "Pressure_row_size"))
+                #barometric_pressure = as.vector(ncdf4::ncvar_get(connection, "Barometric_Pres"))
+)
+ddd[is.na(ddd$z_row_size),"z_row_size"]<-0#needs to be 0 instead of na or cumsum fails below
+ddd[is.na(ddd$Salinity_row_size),"Salinity_row_size"]<-0
+ddd[is.na(ddd$Temperature_row_size),"Temperature_row_size"]<-0
+ddd[is.na(ddd$Pressure_row_size),"Pressure_row_size"]<-0
+
+
+##Add necessary indexes for generating individual CTD cast dataframes
+##This says..for the cast in this row, which section of the vector do I go get my data from...
+ddd$end_indexZ<-cumsum(ddd$z_row_size)#ending index of z
+ddd$start_indexZ<-ddd$end_indexZ-ddd$z_row_size+1#start index of z
+
+ddd$end_indexT<-cumsum(ddd$Temperature_row_size)#ending index of Temperature
+ddd$start_indexT<-ddd$end_indexT-ddd$Temperature_row_size+1#start index of z
+
+ddd$end_indexS<-cumsum(ddd$Salinity_row_size)#ending index of salinity
+ddd$start_indexS<-ddd$end_indexS-ddd$Salinity_row_size+1#start index salinity
+
+ddd$end_indexP<-cumsum(ddd$Pressure_row_size)#ending index of salinity
+ddd$start_indexP<-ddd$end_indexP-ddd$Pressure_row_size+1#start index salinity
+
+
+return(ddd)
+}
+```
+
+
+
+Next we need a function that can create a 'ctd' dataset using the information in in the netcdfs (con1 and con2); for this function it uses ddd and the input is only a single number, telling you what cast in the cast info dataframe (calling it ddd and it MUST be called ddd for function to work)
+
+```{r}
+create.ctd<-function(castN){
+  #castN=1
+  depth = z[ddd[castN,"start_indexZ"]:ddd[castN,"end_indexZ"]]#adds a depth column
+  
+  if(ddd$Temperature_row_size[castN] >0){
+    temp = t[ddd[castN,"start_indexT"]:ddd[castN,"end_indexT"]]}else{
+      temp = NA
+    }
+  
+  if(ddd$Salinity_row_size[castN] >0){
+    salinity = s[ddd[castN,"start_indexS"]:ddd[castN,"end_indexS"]]} else{
+      salinity = NA}
+  
+    if(ddd$Pressure_row_size[castN] >0){
+    pressure = p[ddd[castN,"start_indexP"]:ddd[castN,"end_indexP"]]} else{
+      pressure = NA}
+  
+ tempd<-data.frame(depth,temp,salinity, pressure)
+  density<-rep(NA,nrow(tempd))
+ 
+
+  for(m in 1:nrow(tempd)){
+     if(rowSums(is.na(tempd[1:3]))[m] == 0){
+      density[m]<-swRho(tempd[m,3],tempd[m,2], tempd[m,1])
+    }
+  }
+  tempd$density<-density
+ return(tempd)
+}
+```
+
+
+
+Now use these functions to create a bunch of 'ctd' data frames from the connections.This chunk will take a bit of time to run and is probably a very inefficient way to do this task, but whatever. It works and you only need to do it once.
+
+WIll TAKE ABOUT FIVE MINUTES TO RUN. 
+```{r}
+#####Prepare All data for con1
+ddd<-make_casts(con1)
+ctds1<-list()#this is the list that will contain individual CTD casts
+z<-as.vector(ncdf4::ncvar_get(con1, "z"))#get vectors of variables
+t<-as.vector(ncdf4::ncvar_get(con1, "Temperature"))#get vectors of variables
+s<-as.vector(ncdf4::ncvar_get(con1, "Salinity"))#get vectors of variables
+p<-as.vector(ncdf4::ncvar_get(con1, "Pressure"))#get vectors of variables
+
+for(i in 1:nrow(ddd)){
+  ctds1[[i]]<-create.ctd(i)
+  #print(i) #dont do this, was only using so I could troubleshoot
+}
+ddd_con1<-ddd#resave ddd as ddd1 
+###Now you have ctds1 (has a list of ctd data) and ddd_con1 (has the cast info)
+
+ddd<-make_casts(con2)#make cast dataset
+z<-as.vector(ncdf4::ncvar_get(con2, "z"))#get vectors of variables
+t<-as.vector(ncdf4::ncvar_get(con2, "Temperature"))
+s<-as.vector(ncdf4::ncvar_get(con2, "Salinity"))
+p<-as.vector(ncdf4::ncvar_get(con2, "Pressure"))#get vectors of variables
+ctds2<-list()#empty list to store stuff
+
+for(i in 1:nrow(ddd)){
+  ctds2[[i]]<-create.ctd(i)
+  #print(i) dont do this, was only using so I could troubleshoot
+}
+ddd_con2<-ddd
+###Now you have ctds2 (has a list of ctd data) and ddd_con2 (has the cast info)
+```
+
+
+Plot some CTD data to make sure the stuff looks right.
+```{r}
+i=103#which one to do
+plot(ctds2[[i]]$temp, ctds2[[i]]$depth, ylim =c(rev(range(ctds2[[i]]$depth))),
+     type = "b", col = "red", axes = FALSE, xlab = "", ylab = "")
+axis(1);axis(2,las = 2)
+par(new = TRUE)
+plot(ctds2[[i]]$density, ctds2[[i]]$depth, ylim =c(rev(range(ctds2[[i]]$depth))),
+     type = "b", col = "black", axes = FALSE, ylab = "", xlab = "")
+axis(3)
+```
+
+
+## Part 2
+Now you can take these and put them into a single dataframe (one cast per row) and include only the data you want for calculating indicators.
+
+```{r}
+nrow(ddd_con1)#
+length(ctds1)#good same length
+ddd_con1$last_row_depth<-NA#depth of last row in cast i
+ddd_con1$bot_temp<-NA#the temperature of the last row in cast i
+ddd_con1$bot_sal<-NA#the salinity of the last row in cast i
+ddd_con1$bot_den<-NA#the density of the last row in cast i
+ddd_con1$first_row_depth<-NA#depth of first row in cast i
+ddd_con1$surf_temp<-NA#temp of first row in cast i
+ddd_con1$surf_sal<-NA#sal of first row in cast i
+ddd_con1$surf_den<-NA#density of first row in cast i
+
+ddd_con1$c50_depth<-NA#depth of obs closest to 50 m
+ddd_con1$c50_temp<-NA#temp of obs closst to 50 m
+ddd_con1$c50_sal<-NA#salinity of obs closest to 50 m
+ddd_con1$c50_den<-NA#density of obs closest to 50 m
+
+#thecast<-ctds1[[1]]
+
+
+for(i in 1:nrow(ddd_con1)){
+  thecast<-ctds1[[i]]#the cast data
+  c50row<-which.min(abs(thecast$depth - 50))#row index of obs clsoest to 50 m
+  
+  ddd_con1[i,"last_row_depth"]<-thecast[nrow(thecast),"depth"]
+  ddd_con1[i,"bot_temp"]<-thecast[nrow(thecast),"temp"]
+  ddd_con1[i,"bot_sal"]<-thecast[nrow(thecast),"salinity"]
+  ddd_con1[i,"bot_den"]<-thecast[nrow(thecast),"density"]
+  ddd_con1[i,"first_row_depth"]<-thecast[1,"depth"]
+  ddd_con1[i,"surf_temp"]<-thecast[1,"temp"]
+  ddd_con1[i,"surf_sal"]<-thecast[1,"salinity"]
+  ddd_con1[i,"surf_den"]<-thecast[1,"density"]
+  
+  ddd_con1[i, "c50_depth"]<-thecast[c50row, "depth"]
+  ddd_con1[i, "c50_temp"]<-thecast[c50row, "temp"]
+  ddd_con1[i, "c50_sal"]<-thecast[c50row, "salinity"]
+  ddd_con1[i, "c50_den"]<-thecast[c50row, "density"]
+  
+  #print(i)
+}
+#Now ddd_con1 has what you want
+
+#do it for con 2 data
+ddd_con2$last_row_depth<-NA
+ddd_con2$bot_temp<-NA
+ddd_con2$bot_sal<-NA
+ddd_con2$bot_den<-NA
+ddd_con2$first_row_depth
+ddd_con2$surf_temp<-NA
+ddd_con2$surf_sal<-NA
+ddd_con2$surf_den<-NA
+
+
+ddd_con2$c50_depth<-NA#depth of obs closest to 50 m
+ddd_con2$c50_temp<-NA#temp of obs closst to 50 m
+ddd_con2$c50_sal<-NA#salinity of obs closest to 50 m
+ddd_con2$c50_den<-NA#density of obs closest to 50 m
+
+for(i in 1:nrow(ddd_con2)){
+  thecast<-ctds2[[i]]
+  c50row<-which.min(abs(thecast$depth - 50))#row index of obs clsoest to 50 m
+  
+  ddd_con2[i,"last_row_depth"]<-thecast[nrow(thecast),"depth"]
+  ddd_con2[i,"bot_temp"]<-thecast[nrow(thecast),"temp"]
+  ddd_con2[i,"bot_sal"]<-thecast[nrow(thecast),"salinity"]
+  ddd_con2[i,"bot_den"]<-thecast[nrow(thecast),"density"]
+  ddd_con2[i,"first_row_depth"]<-thecast[1,"depth"]
+  ddd_con2[i,"surf_temp"]<-thecast[1,"temp"]
+  ddd_con2[i,"surf_sal"]<-thecast[1,"salinity"]
+  ddd_con2[i,"surf_den"]<-thecast[1,"density"]
+  #print(i)
+  
+  ddd_con2[i, "c50_depth"]<-thecast[c50row, "depth"]
+  ddd_con2[i, "c50_temp"]<-thecast[c50row, "temp"]
+  ddd_con2[i, "c50_sal"]<-thecast[c50row, "salinity"]
+  ddd_con2[i, "c50_den"]<-thecast[c50row, "density"]
+}
+
+finalDDD<-rbind(ddd_con1,ddd_con2)
+```
+
+
+NOTE: Before moving on to part 3 I think its a good idea to write this to disk "finalDDD" and then clear the workspace completely because by this point it is pretty full of shit. 
+
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
+write.csv(finalDDD,"WOD_CTD_format_D50_June24_2020.csv")
+rm(list = ls(all.names = TRUE))#will remove everything in workspace and hidden objects
+```
+
+
+
+

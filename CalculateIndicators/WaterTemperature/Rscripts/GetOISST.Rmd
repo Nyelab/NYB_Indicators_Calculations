@@ -1,0 +1,175 @@
+## Sea Surface Temperature
+**Kurt Heim, kurtcheim@gmail.com**
+**LAST UPDATED: August 10 2020**
+
+### Datasets
+Here I use the Optimally Interpolated Sea Surface Temperature (OISST) dataset provided by NOAA. [This is the main webpage for the dataset](https://www.ncdc.noaa.gov/oisst) for more details. It is a global dataset at 1/4 degree resolution. For each cell, there are 365 measurements per year (1 temp per day). 
+
+### Getting the dataset(s)
+I have found the easiset way to get the OISST data is to get it directly in R using a server connection. The first section below will download a bunch of netcdf files from within R studio. The second section (Prossess OISST) will process the ncdf files, assign the 'points' to spatial areas of interst, and generate a final dataset that can be used for indicator calculations. 
+
+## Section 1: Get SST data
+This code creates a function to download a piece of OISST data based on specified time period and lat long bounding box. The code is adapted from the [following website](https://cran.r-project.org/web/packages/heatwaveR/vignettes/OISST_preparation.html). To use the function, one needs to change the working directory to the place where you want some netcdf files of OISST data saved.
+
+The benefit of this approach to getting OISST data is that it does not need to get the whole world dataset..you can just get the pieces you want. It will take 15 - 20 minutes to acquire all of the six files below; run it on a test first (OISST1) before committing to run the full data grab with all of them. The reason I split it up into six time 'chunks' is that in case one fails then the whole thing doesnt fail, you can just start on the ones it didnt finish yet. 
+
+Also note, if you have already run this and have the files, then you dont need to run it again. 
+
+```{r, message = FALSE}
+library(dplyr)
+library(rerddap)
+library(ncdf4)
+library(rgdal)
+library(lubridate)
+library(nngeo)
+library(reshape2)
+#change the function to put in the location to save the dataset
+#This is the 'store' = part in the function
+
+# A NOTE: this took a bit to figure out but for the longitude part
+## you need to use 360 minus the typical longtidue value
+## like for -76 you need to go 360 - 76; 
+
+
+#####Function 1 (get data)
+OISST_sub <- function(times, mypath){
+  oisst_res <- griddap(#x = "ncdc_oisst_v2_avhrr_by_time_zlev_lat_lon", 
+    #url = "https://www.ncei.noaa.gov/erddap/", 
+    x = "ncdcOisst2Agg_LonPM180", ###NEW TRU
+    url = "https://coastwatch.pfeg.noaa.gov/erddap/",###NEW TRY
+    
+    time = times, 
+    #depth = c(0, 0),
+    latitude = c(32,46),# North south
+    longitude = c(-80,-65),# E W (need to subtract long in normal format from 360 to get this)
+    fields = "sst",
+    store = disk(path = mypath)
+    #,read = FALSE) #Where to save it!!!
+  )
+    }
+
+
+#Old version, THIS link stopped working when OISST was updated
+#OISST_sub <- function(times, mypath){
+#  oisst_res <- griddap(x = "ncdc_oisst_v2_avhrr_by_time_zlev_lat_lon", 
+#                       url = "https://www.ncei.noaa.gov/erddap/", 
+#                       time = times, 
+#                       depth = c(0, 0),
+#                       latitude = c(32,46),# North south
+#                       longitude = c(280,295),# E W (need to subtract long in normal format from 360 to get this)
+#                       fields = "sst",
+#                       store = disk(path = mypath)) #Where to save it!!!
+#}
+
+
+mypath<-"~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data"
+
+#####Running the following commands will take about 15 mintues
+#####I turned these off here,but you need to run these to access the datasets and store them somewher!!!
+#s
+  #OISST1 <- OISST_sub(c("1982-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),mypath)
+  #OISST2 <- OISST_sub(c("1986-01-01T00:00:00Z", "1990-12-31T00:00:00Z"),mypath)
+  #OISST3 <- OISST_sub(c("1991-01-01T00:00:00Z", "1999-12-31T00:00:00Z"),mypath)
+  #OISST4 <- OISST_sub(c("2000-01-01T00:00:00Z", "2008-12-31T00:00:00Z"),mypath)
+  #OISST5 <- OISST_sub(c("2009-01-01T00:00:00Z", "2013-12-03T00:00:00Z"),mypath)
+  #OISST6 <- OISST_sub(c("2014-01-01T00:00:00Z", "2019-12-03T00:00:00Z"),mypath)
+```
+
+Now you have six files with long strange names saved in **mypath** so these will get used in the next step.
+
+
+## Section 2: Process the SST data
+
+The OISST data have 365 temperature estimates per year for each grid cell in the region. What we want to do is figure out which spatial unit each grid point falls into (i.e., Mid Atlantic, Gulf of Maine, etc.). Because there are thousands of estimates, at the same grid cells (i.e., grid points are fixed with repeated measures)...we only need to figure out where each grid cell is (i.e., which epu, or NYB, etc.) a single time. If we know what it is once, we know what it is always. 
+
+Therefore the code does a spatial join on only a subset of the full SST data, then merges the labels back to the full dataset. Once these points are labeled, they can be easily summarized by location. 
+
+
+```{r}
+#This is the function to get the needed data from the .nc files that were created above
+#it grabs them and makes them far easier to work with 
+OISST_prep <- function(filename){
+  # Open the NetCDF connection
+  nc <- nc_open(filename)
+  # Extract the SST values and add the lon/lat/time dimension names
+  res <- ncvar_get(nc, varid = "sst")
+  dimnames(res) <- list(lon = nc$dim$longitude$vals,
+                        lat = nc$dim$latitude$vals,
+                        t = nc$dim$time$vals)
+  # Convert the data into a 'long' dataframe for use in the 'tidyverse' ecosystem
+  res <- as.data.frame(reshape2::melt(res, value.name = "temp"), row.names = NULL) %>% 
+    mutate(t = as.Date(as.POSIXct(t, origin = "1970-01-01 00:00:00")),
+           temp = round(temp, 2))
+  # Close the NetCDF connection and finish
+  nc_close(nc)
+  return(res)#gives you the new easy to work with file as a dataframe
+}
+
+
+
+####First, use a single net cdf file to make a 'key' for clipping and area assigmment
+
+
+
+
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
+d1<-OISST_prep("a59ac185b8e5d9a34813fee58c0a9fdf.nc")
+#d1$lon<-(360-d1$lon)*-1#fix lat long, dont need to do this anymore with new ERDDAP version
+d1$lat_lon<-paste(d1$lat, d1$lon, sep = "_")#this is just a unique id for each grid point
+d1sub<-d1[!duplicated(d1$lat_lon),]#get rid of all duplicate dmeasuremnts at a point
+
+#and here is the labeling function, inside it does lots of spatial overlays and fancystuff
+#####load required functiosn and shapefiles######
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/Rfunctions")
+source("LabelPoints.R")
+       
+       
+lazylab<-klab(d1sub$lat, d1sub$lon)
+tlabs<-data.frame(d1sub, lazylab)
+tlabs$EPU<-as.character(tlabs$EPU)
+tlabs[is.na(tlabs$EPU),"EPU"]<-"Not in NES"
+tlabs$NYB<-as.character(tlabs$NYB)
+tlabs[is.na(tlabs$NYB),"NYB"]<-"Not in NYB"
+
+tlabs<-tlabs[,c(5,6,7)]
+```
+
+All of the above code was done to make an object called **tlabs** which now will be used to label all of the points in the full OISST dataset.
+
+```{r}
+###NOW the full dataset can be brought in (all the data gathered in the first section)
+###And it can be labled according to the tlabs ddataframe
+####These are all of the data created with GetSST
+
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
+d1<-OISST_prep("a59ac185b8e5d9a34813fee58c0a9fdf.nc")
+d2<-OISST_prep("79b6e789d3e145c094aae90f9600f8b0.nc")
+d3<-OISST_prep("b0988ceaf10f0d2f3287c9d5c4c05cfd.nc")
+d4<-OISST_prep("9bd1c68f26ce957283f2705a6f4d351b.nc")
+d5<-OISST_prep("d7a66efb0dd885bc6a6745e9921b6766.nc")
+d6<-OISST_prep("9e231e194f77722b4ec78467a053baf6.nc")
+
+ddd<-rbind(d1,d2,d3,d4,d5,d6)
+rm(d1,d2,d3,d4,d5,d6)
+nrow(ddd)
+
+####ddd$lon<-(360-ddd$lon)*-1#convert to correct lat longNOT NEEDED
+ddd$lat_lon<-paste(ddd$lat, ddd$lon, sep = "_") #takes awhile, makes a unique lat-long identfier
+###remove poitns not within EPU AND not in NYB
+ddd<-ddd[ddd$lat_lon %in% tlabs[tlabs$EPU == "Not in NES" & tlabs$NYB == "Not in NYB", "lat_lon"] == FALSE,]#get rid of points not in an EPU or in the NYB
+nrow(ddd)
+ddd$year<-year(ddd$t)#add year
+ddd$month<-month(ddd$t)#add month numeric
+ddd$day<-day(ddd$t)#add day of month
+ddd$yday<-yday(ddd$t)#add yearday
+
+###ddd is the final dataset to work with for summary stats calculations
+ddd<-merge(ddd,tlabs, by = "lat_lon")
+
+###SAVE THIS DATA FRAME
+### Then you dont need torepeat above steps next time you want to work on this
+
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
+write.csv(ddd, "L1_SST_data_ProcessedAUG10_2020.csv", row.names = FALSE)#takes awhile
+```
+
