@@ -1,0 +1,73 @@
+## Marine Recreational Information Program (MRIP) indicators
+
+NOTE: This is kinda pieced together in an inefficient way; it would be better to aggregate across multiple response variables e.g. aggregage(var 1 var 2 var 4 ~ whatever) instead of doing it seperatly each time, but so it goes. Sorry whoever might read this in the future. 
+
+
+##Importance and use as Indicators
+Recreational fishing is an important socio-economic benefit of the offshore marine ecosystem. Although generally not considered to be as impactful on fish stocks as commercial fishing, the cumulative impacts of recreational fishing can be substantial and often overlooked (Lewin, Arlinghaus, & Mehner, 2006). Therefore, trends in participation (i.e., number of anglers, number of trips) and harvest are important to monitor and can be used as long-term indicators as they pertain to different objectives. Participation provides a measure of the benefits that the ecosystem provides to the public, whereas harvest is an important anthropogenic pressure on the state of the system.
+
+Indicators of recreational fishing used in the annual ESR by NOAA for the Mid-Atlantic include 1) total recreational seafood harvest in the Mid-Atlantic region (n fish caught) 2) recreational effort (days fished) and 3) number of anglers fishing. Additionally, in 2019 new indicators were added to include 4) recreational effort diversity (party/charter boat, private boat, shore based) and 5) species diversity of the recreational catch. Both of these metrics are calculated as the effective Shannon index. Similarly, a recent synthetic paper comparing indicators across marine ecosystems in the USA used total recreational landings per square kilometer (Link & Marshak, 2019).   
+
+##MRIP dataset
+
+The MRIP data are available [here](https://www.st.nmfs.noaa.gov/recreational-fisheries/data-and-documentation/queries/index), it is easiest to go to this site then click on the tab that says "Dowload QUery" GoTo query..itwill give you some downloading options. 
+
+
+
+
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/RecreationalFishing/Data")
+catch<-read.csv("mrip_estim_catch_year_1981_2020.csv")##SEP 11 VERSIOn
+#name of states instaed of codes
+statedf<-data.frame(ST = c(37,51,24,10,34,36,42,23,33,25,44,09),
+                    ST_name =c("NC", "VA", "MD", "DE", "NJ", "NY", "PA", "ME","NH", "MA","RI", "CT"))
+catch<-merge(catch, statedf)
+
+
+######Calculate state means
+totharv_st<-aggregate(cbind(LANDING,ESTREL,LBS_AB1) ~ YEAR + ST_name, data = catch, FUN = sum)#...by state
+totharv_st$tot_caught<-totharv_st$LANDING+totharv_st$ESTREL
+totharv_st$pcnt_release<-totharv_st$ESTREL/totharv_st$tot_caught
+
+
+NY<-totharv_st[totharv_st$ST_name == "NY",]
+
+###Format the indicators
+RecHarv_LB<-data.frame(Year = NY$YEAR,
+               Variable = "Rec_HarvLB",
+               Val = NY$LBS_AB1,
+              Loc = "NY",
+               N = "NA")
+RecHarv_N<-data.frame(Year = NY$YEAR,
+               Variable = "Rec_HarvN",
+               Val = NY$LANDING,
+              Loc = "NY",
+               N = "NA")
+RecCatch_N<-data.frame(Year = NY$YEAR,
+               Variable = "RecCatch_N",
+               Val = NY$tot_caught,
+              Loc = "NY",
+               N = "NA")
+RecRelease_N<-data.frame(Year = NY$YEAR,
+               Variable = "RecRelease_N",
+               Val = NY$ESTREL,
+              Loc = "NY",
+               N = "NA")
+RecRelease_Pct<-data.frame(Year = NY$YEAR,
+               Variable = "RecRelease_Pct",
+               Val = NY$pcnt_release,
+              Loc = "NY",
+               N = "NA")
+
+RecIndy<-rbind(RecRelease_N,
+      RecRelease_Pct,
+      RecCatch_N,
+      RecHarv_LB,
+      RecHarv_N)
+
+setwd("~/Desktop/NYB Indicators/Final_timeseries")
+write.csv(RecIndy, "RecIndySept23.csv")
+
+```
+
+

@@ -1,0 +1,212 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+## Marine Recreational Information Program (MRIP) indicators
+
+NOTE: This is kinda pieced together in an inefficient way; it would be better to aggregate across multiple response variables e.g. aggregage(var 1 var 2 var 4 ~ whatever) instead of doing it seperatly each time, but so it goes. Sorry whoever might read this in the future. 
+
+
+##Importance and use as Indicators
+Recreational fishing is an important socio-economic benefit of the offshore marine ecosystem. Although generally not considered to be as impactful on fish stocks as commercial fishing, the cumulative impacts of recreational fishing can be substantial and often overlooked (Lewin, Arlinghaus, & Mehner, 2006). Therefore, trends in participation (i.e., number of anglers, number of trips) and harvest are important to monitor and can be used as long-term indicators as they pertain to different objectives. Participation provides a measure of the benefits that the ecosystem provides to the public, whereas harvest is an important anthropogenic pressure on the state of the system.
+
+Indicators of recreational fishing used in the annual ESR by NOAA for the Mid-Atlantic include 1) total recreational seafood harvest in the Mid-Atlantic region (n fish caught) 2) recreational effort (days fished) and 3) number of anglers fishing. Additionally, in 2019 new indicators were added to include 4) recreational effort diversity (party/charter boat, private boat, shore based) and 5) species diversity of the recreational catch. Both of these metrics are calculated as the effective Shannon index. Similarly, a recent synthetic paper comparing indicators across marine ecosystems in the USA used total recreational landings per square kilometer (Link & Marshak, 2019).   
+
+##MRIP dataset
+
+The MRIP data are available [here](https://www.st.nmfs.noaa.gov/recreational-fisheries/data-and-documentation/queries/index), it is easiest to go to this site then click on the tab that says "Dowload QUery" GoTo query..itwill give you some downloading options. 
+
+
+
+For this, I clicked from **1981** to **2020** , **ALL FILES**, **All Waves**, and then **Atlantic coast by State**.
+
+click the box that says **ALL SPECIES** then download as a .csv file zipped. 
+
+
+
+
+##Doing the indicator calculations
+Fish harvested (all species) by number. Variable to use is LANDING (total harvest (A+B1), the total number of fish removed from the fishery. This does not include recreational releases, which is done next. 
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/RecreationalFishing/Data")
+catch<-read.csv("mrip_estim_catch_year_1981_2020.csv")##SEP 11 VERSIOn
+##States in Mid Atlantic FMC
+mid<-c(37, #north carolina
+      51, #virgina
+      24, #maryland
+      10, #deleware
+      34, #new Jersey
+      36,#new York
+      42) #PA NOT IN THERE....So forgttaboudit.
+NE<-c(23,#Maine
+      33,#New Hampshire
+      25,# Mass
+      44,#Rhode Island
+      09)#Connecticut)
+statedf<-data.frame(ST = c(37,51,24,10,34,36,42,23,33,25,44,09),
+           ST_name =c("NC", "VA", "MD", "DE", "NJ", "NY", "PA", "ME","NH", "MA","RI", "CT"))
+catch<-catch[catch$ST %in% c(mid,NE) == TRUE,]
+catch<-merge(catch, statedf)
+
+catch$council<-"NE"
+catch[catch$ST %in% mid == TRUE, "council"]<-"MA"
+#catch<-catch[catch$AREA_X == 2,] ###AREA_X = 2 means ocean > 3 miles from shore
+
+totharv_council<-aggregate(LANDING ~ council + YEAR, data = catch, FUN = sum)#this is total count of harvest fish by year and coucnil
+totharv_st<-aggregate(LANDING ~ YEAR + ST_name + council, data = catch, FUN = sum)#...by state
+totharv_all<-aggregate(LANDING ~ YEAR, data = catch, FUN = sum)#....all at once!
+
+totharv_council_format<-data.frame(Year = totharv_council$YEAR,
+               Variable = "Rec_harv",
+               Val = totharv_council$LANDING,
+               ScaleType = "FMC",
+               ScaleName = totharv_council$council,
+               ScaleName2 = "None",
+               ScaleName3 = "None",
+               N = "NA")
+totharv_st_format<-data.frame(Year = totharv_st$YEAR,
+               Variable = "Rec_harv",
+               Val = totharv_st$LANDING,
+               ScaleType = "State",
+               ScaleName = totharv_st$ST_name,
+               ScaleName2 = totharv_st$council,
+               ScaleName3 = "None",
+               N = "NA")
+totharv_all_format<-data.frame(Year = totharv_all$YEAR,
+               Variable = "Rec_harv",
+               Val = totharv_all$LANDING,
+               ScaleType = "Global",
+               ScaleName = "NES",
+               ScaleName2 = "None",
+               ScaleName3 = "None",
+               N = "NA")
+```
+
+
+
+Plot the total harvest by council, state, and all to make sure nothing seems fishy (haha, get it, fishy)
+```{r}
+library(ggplot2)
+ggplot(data=totharv_council_format, aes(x=Year, y=Val, group = ScaleName, colour = factor(ScaleName))) +
+  geom_line() +
+  geom_point(size=1, shape=21, fill="white") + 
+  geom_hline(yintercept = 0)
+ggplot(data=totharv_st_format, aes(x=Year, y=Val, group = ScaleName, colour = factor(ScaleName))) +
+  geom_line() +
+  geom_point(size=1, shape=21, fill="white") + 
+  geom_hline(yintercept = 0)
+plot(totharv_st_format[totharv_st_format$ScaleName == "NY", "Year"],
+totharv_st_format[totharv_st_format$ScaleName == "NY", "Val"], type = "b")
+```
+
+
+That seemed fine, cut out 2020 data (since its incompelte) and write The NY data to disk.
+
+```{r}
+#Do for NY
+waaa<-totharv_st_format[totharv_st_format$ScaleName == "NY",]
+mab<-totharv_council_format[totharv_council_format$ScaleName == "MA",]
+
+RecHarv_fin<-data.frame(Year = waaa$Year,
+               Variable = "Rec_Harv",
+               Val = waaa$Val,
+              Loc = "NY",
+               N = "NA")
+MidRecHarv<-data.frame(Year = mab$Year,
+               Variable = "Rec_Harv",
+               Val = mab$Val,
+              Loc = "MAB",
+               N = "NA")
+RecHarvN<-rbind(RecHarv_fin, MidRecHarv)
+RecHarvN<-RecHarvN[RecHarvN$Year < 2020,]
+#setwd("~/Desktop/NYB Indicators/Final_timeseries")
+#write.csv(RecHarv, "RecHarv_Numbers.csv")
+```
+
+
+
+RecHarv is now done including NY and MAB. Now do by weight. 
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/RecreationalFishing/Data")
+catch<-read.csv("mrip_estim_catch_year_1981_2020.csv")##SEP 11 VERSIOn
+catch<-catch[catch$ST %in% c(mid,NE) == TRUE,]
+catch<-merge(catch, statedf)
+
+catch$council<-"NE"
+catch[catch$ST %in% mid == TRUE, "council"]<-"MA"
+#catch<-catch[catch$AREA_X == 2,]
+
+totharv_council<-aggregate(LBS_AB1~ council + YEAR, data = catch, FUN = sum)#this is total count of harvest fish by year and coucnil
+totharv_st<-aggregate(LBS_AB1 ~ YEAR + ST_name + council, data = catch, FUN = sum)#...by state
+totharv_all<-aggregate(LBS_AB1 ~ YEAR, data = catch, FUN = sum)#....all at once!
+
+totharv_council_format<-data.frame(Year = totharv_council$YEAR,
+               Variable = "Rec_harvLB",
+               Val = totharv_council$LBS_AB1,
+               ScaleType = "FMC",
+               ScaleName = totharv_council$council,
+               ScaleName2 = "None",
+               ScaleName3 = "None",
+               N = "NA")
+totharv_st_format<-data.frame(Year = totharv_st$YEAR,
+               Variable = "Rec_harvLB",
+               Val = totharv_st$LBS_AB1,
+               ScaleType = "State",
+               ScaleName = totharv_st$ST_name,
+               ScaleName2 = totharv_st$council,
+               ScaleName3 = "None",
+               N = "NA")
+totharv_all_format<-data.frame(Year = totharv_all$YEAR,
+               Variable = "Rec_harvLB",
+               Val = totharv_all$LBS_AB1,
+               ScaleType = "Global",
+               ScaleName = "NES",
+               ScaleName2 = "None",
+               ScaleName3 = "None",
+               N = "NA")
+
+ggplot(data=totharv_council_format, aes(x=Year, y=Val, group = ScaleName, colour = factor(ScaleName))) +
+  geom_line() +
+  geom_point(size=1, shape=21, fill="white") + 
+  geom_hline(yintercept = 0)
+ggplot(data=totharv_st_format, aes(x=Year, y=Val, group = ScaleName, colour = factor(ScaleName))) +
+  geom_line() +
+  geom_point(size=1, shape=21, fill="white") + 
+  geom_hline(yintercept = 0)
+plot(totharv_st_format[totharv_st_format$ScaleName == "NY", "Year"],
+totharv_st_format[totharv_st_format$ScaleName == "NY", "Val"], type = "b")
+
+#####All looks good, jsut get MAB and NY and save as final df
+#Do for NY
+waaa<-totharv_st_format[totharv_st_format$ScaleName == "NY",]
+mab<-totharv_council_format[totharv_council_format$ScaleName == "MA",]
+
+RecHarv_fin<-data.frame(Year = waaa$Year,
+               Variable = "Rec_HarvLB",
+               Val = waaa$Val,
+              Loc = "NY",
+               N = "NA")
+MidRecHarv<-data.frame(Year = mab$Year,
+               Variable = "Rec_HarvLB",
+               Val = mab$Val,
+              Loc = "MAB",
+               N = "NA")
+RecHarvLB<-rbind(RecHarv_fin, MidRecHarv)
+RecHarvLB<-RecHarvLB[RecHarvLB$Year < 2020,]
+
+RecHarvFINAL<-rbind(RecHarvLB, RecHarvN)
+
+setwd("~/Desktop/NYB Indicators/Final_timeseries")
+write.csv(RecHarvFINAL, "RecHarvSeptember20.csv")
+
+```
+
+
+```{r}
+NY<-RecHarvFINAL[RecHarvFINAL$Loc == "NY",]
+plot(NY$Year, NY$Val, col =NY$Variable)
+```
+
+
+
