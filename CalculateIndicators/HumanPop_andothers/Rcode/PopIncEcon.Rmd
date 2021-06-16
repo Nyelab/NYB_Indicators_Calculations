@@ -1,0 +1,450 @@
+### Humans
+Human populaton datasets
+
+The National Cancer Institute (NCI) produces a data product that is used for cancer research; it is population size estimates that incorporates multiple sources of data from the census bureau.  It seems great and much easier to work with than the data directly from Census Bureau. It is available at the county level and separates by age, sex, race. 
+
+[The metadata are here](https://seer.cancer.gov/popdata/popdic.html)
+
+[The data are here](https://seer.cancer.gov/popdata/download.html)
+
+To understand the county names, you need the FIPS codes, [which are here](https://transition.fcc.gov/oet/info/maps/census/fips/fips.txt)
+
+
+
+This script loads the data and calculates total population size per year for states in the NE Atlantic (NC to ME)
+```{r}
+library(readr)
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/HumanPop_andothers/Data")
+length_col<-c(4,2,2,3,2,1,1,1,2,8)
+pdat<-read_fwf("L0_us.1969_2017.19ages_NCIPOPDATA.txt",
+          fwf_widths(length_col))
+names(pdat)<-c("Year",
+               "State",
+               "ST_FIPS",
+               "CNTY_FIPS",
+               "Reg",
+               "Race",
+               "Origin",
+               "Sex",
+               "Age",
+               "Pop")
+
+#get only NE states
+states<-c("NC", "VA", "MD", "DE", "NJ", "NY", "RI", "CT", "MA", "NH", "ME")
+
+pdatN<-pdat[pdat$State %in% states == TRUE,]
+pdatN$Pop<-as.numeric(pdatN$Pop)
+glob_pop<-aggregate(Pop ~ Year, data = pdatN, FUN = sum)
+plot(glob_pop$Year, glob_pop$Pop/1000000)
+
+hum_pop_glob<-data.frame(Year = glob_pop$Year,
+               Variable = "Hum_pop",
+               Val = glob_pop$Pop,
+               ScaleType = "Global",
+               ScaleName = "NE_coast",
+               ScaleName2 = "None")
+plot(hum_pop_glob$Year, hum_pop_glob$Val, type = "l")
+```
+
+
+
+This script calculates humpop by state.
+```{r}
+library(ggplot2)
+
+st_pop<-aggregate(Pop ~ Year + State, data = pdatN, FUN = sum)
+ggplot(data=st_pop, aes(x=Year, y=Pop, group = State, colour = State)) +
+  geom_line() +
+  geom_point(size=1, shape=21, fill="white") + 
+  geom_hline(yintercept = 0)
+#format it
+hum_pop_state<-data.frame(Year = st_pop$Year,
+                         Variable = "Hum_pop",
+                         Val = st_pop$Pop,
+                         ScaleType = "State",
+                         ScaleName = st_pop$State,
+                         ScaleName2 = "None")
+plot(hum_pop_state[hum_pop_state$ScaleName == "NY", "Year"],
+     hum_pop_state[hum_pop_state$ScaleName == "NY", "Val"]/1000000)
+plot(hum_pop_state[hum_pop_state$ScaleName == "NJ", "Year"],
+     hum_pop_state[hum_pop_state$ScaleName == "NJ", "Val"]/1000000)
+```
+
+Now, do it by county for only NY
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/HumanPop_andothers/Data")
+fips<-read.csv("FIPS_codes.csv", header = TRUE)
+NY<-pdatN[pdatN$State == "NY",]
+county_pop<-aggregate(Pop ~ Year + State + CNTY_FIPS + ST_FIPS, data = NY, FUN = sum)
+nrow(county_pop)#19196
+county_pop$fips<-paste0(county_pop$ST_FIPS, county_pop$CNTY_FIPS)
+county_pop$FIPS<-as.integer(county_pop$fips)
+county_pop<-merge(county_pop, fips, by = "FIPS")
+nrow(county_pop)#19055
+county_pop$ScaleName<-paste(county_pop$State, county_pop$NAME)
+
+hum_pop_cnty<-data.frame(Year = county_pop$Year,
+                          Variable = "Hum_pop",
+                          Val = county_pop$Pop,
+                          ScaleType = "County",
+                          ScaleName = county_pop$ScaleName,
+                          ScaleName2 = county_pop$State)
+
+unique(hum_pop_cnty$ScaleName)
+keep<-c("NY Suffolk County",
+"NY Nassau County"
+#"NY Queens County",
+#"NY Kings County"
+#"NY Richmond County",
+#"NY Bronx County",
+#"NY New York County"
+)
+
+NY_county<-hum_pop_cnty[hum_pop_cnty$ScaleName %in% keep == TRUE,]
+NYD<-aggregate(Val ~ Year, NY_county, FUN = sum)
+
+
+```
+
+
+REformat for new standard file format and wwrite csv
+```{r}
+LIpop<-data.frame(Year = NYD$Year,
+               Variable = "LongIslandPop",
+               Val = NYD$Val,
+                Loc = "LongIsland",
+               N = "NA")
+setwd("~/Desktop/NYB Indicators/Final_timeseries")
+write.csv(LIpop,"HumanPopLI.csv")
+```
+
+
+ALLL OF THIS IS OLD ESTUFF BUT I AM LEAVING HERE.....
+```{r}
+unique(poop$ScaleType)
+NYstate<-poop[poop$ScaleName == "NY",]
+plot(NYstate$Year, NYstate$Val/1000000, type = "l", ylab = "NY population (millions)",
+    axes = FALSE, xlab = "", xlim =c(1960, 2020))
+axis(1)
+axis(2)
+
+
+nassau<-poop[poop$ScaleName == "NY Nassau County",]
+nassau<-nassau[order(nassau$Year),]
+
+suffolk<-poop[poop$ScaleName == "NY Suffolk County",]
+suffolk<-suffolk[order(suffolk$Year),]
+
+bronx<-poop[poop$ScaleName == "NY Bronx County",]
+bronx<-bronx[order(bronx$Year),]
+
+queens<-poop[poop$ScaleName == "NY Queens County",]
+queens<-queens[order(queens$Year),]
+
+par(mar =c(4,6,4,4))
+plot(nassau$Year, nassau$Val, ylim = c(1100000, 1500000), type = "l", ylab = "", axes = FALSE, xlab = "")
+
+points(suffolk$Year, suffolk$Val, col = "green", type = "l")
+points(bronx$Year, bronx$Val, col = "purple", type = "l")
+legend("bottomright",lty = 1, col = c("black", "green", "purple"), legend = c("Nassau", "Suffolk", "Bronx") )
+#points(queens$Year, queens$Val, col = "red", type = "l")
+axis(1); axis(2, las = 2)
+```
+
+
+
+###Per Capita Income
+There is a really nice dataset that is based on the Census Bureau survey called the “CPS” survey that is done every year. Data are available for downloading as “.xls” files here, click on the data file under the header “Table P-1. Total CPS Population and Per Capita Income” and choose “all races”.
+
+https://www.census.gov/data/tables/time-series/demo/income-poverty/historical-income-people.html
+
+Data - State Scale:
+Provides data for states from 1984 to present , median household income. Choose the “Table H-8. Median household income by state”. The spreadsheet needs reformatting to be used in R. 
+
+https://www.census.gov/data/tables/time-series/demo/income-poverty/historical-income-households.html
+
+
+
+```{r}
+
+setwd("~/Google Drive/DEC_Indicators/Population_Income_Ecomony/Data")
+nati<-read.csv("L1_p01ar_CPSandPerCapitaIncome.csv",header = TRUE)
+plot(nati$Year, nati$Surv_N)
+plot(nati$Year, nati$Dollars/1000)
+plot(nati$Year, nati$Cur_dol)
+
+natiF<-data.frame(Year = nati$Year,
+                    Variable = "PC_income",
+                    Val = nati$Cur_dol,
+                    ScaleType = "Global",
+                    ScaleName = "Global",
+                    ScaleName2 = "None")
+
+###do it for states now
+setwd("~/Google Drive/DEC_Indicators/Population_Income_Ecomony/Data")
+stati<-read.csv("L1_h08-2_medianpercapitaStates.csv", header = TRUE)
+sta<-unique(stati$State)
+stati<-stati[stati$State %in% sta[10] == FALSE,]#remove dc
+stati<-stati[stati$State %in% sta[1] == FALSE,]#remove USA
+
+#make first state
+newdf<-data.frame(Year = 2017:1984,
+                  Variable = "Med_income",
+                  Val = as.numeric(stati[1,2:ncol(stati)]),
+                  ScaleType = "State",
+                  ScaleName = state.abb[match(sta[1],state.name)],
+                  ScaleName2 = "None")
+for(i in 2:length(sta)){
+  newstate<-data.frame(Year = 2017:1984,
+             Variable = "Med_income",
+             Val = as.numeric(stati[i,2:ncol(stati)]),
+             ScaleType = "State",
+             ScaleName = state.abb[match(sta[i],state.name)],
+             ScaleName2 = "None")
+  newdf<-rbind(newdf, newstate)
+}
+stateMed<-newdf[newdf$ScaleName %in% states == TRUE,]
+
+
+stateMed$ScaleName3<-"NA"
+setwd("~/Google Drive/DEC_Indicators/FinalDatasets")
+write.csv(stateMed,"MedianIncome.csv")
+```
+
+
+```{r}
+
+ggplot(data=stateMed, aes(x=Year, y=Val, group = ScaleName, colour = ScaleName)) +
+  geom_line() +
+  geom_point(size=1, shape=21, fill="white") + 
+  geom_hline(yintercept = 0)
+```
+
+
+
+
+
+Do the economics now data analysis.
+
+This is how to get it. 
+
+This website has a long list of datasets and you must navigate to the one that says “Economics: National Ocean Watch”. It is easiest to do a page search to find it. Clicking the “download” tab downloads a file folder (ENOW, 3.5MB) that has many files in it; the one used in the R script to calculate indicators is “ENOW_Sectors_2005_2016.xlsx”. It is re-formatted in excel and saved as a ‘.csv’ file to work with in R.  
+https://coast.noaa.gov/digitalcoast/data/
+
+Make a table of whats in there
+```{r}
+setwd("~/Google Drive/DEC_Indicators/Population_Income_Ecomony/Data/ENOW")
+ind<-read.csv("ENOW_Industries_2005_2016.csv",header = TRUE)
+
+unique(paste(ind$OceanSector, ind$OceanIndustry, sep = "_"))
+
+```
+
+
+```{r}
+library(reshape2)
+setwd("~/Google Drive/DEC_Indicators/Population_Income_Ecomony/Data")
+enow<-read.csv("L1_ENOW_Sectors_2005_2016.csv",header = TRUE)
+enow[enow == -9999]<-NA###9999s mean data are not availabe or masked because of confidentiality
+#enow<-enow[enow$year != 2016,]
+
+###Global totals
+states<-c("NC", "VA", "MD", "DE", "NJ", "NY", "RI", "CT", "MA", "NH", "ME")
+enow_state<-enow[enow$StateAbbrv %in% states == TRUE &
+             enow$GeoScale == "State",]
+Global_LMR_sums<-aggregate(cbind(Real_GDP,Employment,Establishments) ~ year, FUN = sum, 
+          data = enow_state[enow_state$OceanSector == "Living Resources",] )
+Global_AllOcean_sums<-aggregate(Real_GDP ~ year, FUN = sum, 
+          data = enow_state[enow_state$OceanSector == "All Ocean Sectors",] )
+
+#melt(Global_LMR_sums, id.vars = "year")
+d1<-data.frame(Year = Global_LMR_sums$year,
+           Variable = "LMR_employ",
+           Val = Global_LMR_sums$Employment,
+           ScaleType = "Global",
+           ScaleName = "NE_coast",
+           ScaleName2 = "None")
+d2<-data.frame(Year = Global_LMR_sums$year,
+               Variable = "LMR_estab",
+               Val = Global_LMR_sums$Establishments,
+               ScaleType = "Global",
+               ScaleName = "NE_coast",
+               ScaleName2 = "None")
+d3<-data.frame(Year = Global_LMR_sums$year,
+               Variable = "LMR_GDP",
+               Val = Global_LMR_sums$Real_GDP,
+               ScaleType = "Global",
+               ScaleName = "NE_coast",
+               ScaleName2 = "None")
+d4<-data.frame(Year = Global_LMR_sums$year,
+               Variable = "LMR_GDP_percent",
+               Val = Global_LMR_sums$Real_GDP/Global_AllOcean_sums$Real_GDP,
+               ScaleType = "Global",
+               ScaleName = "NE_coast",
+               ScaleName2 = "None")
+global_format<-rbind(d1,d2,d3,d4)
+```
+
+```{r}
+###look at plots
+#dev.off()
+plot(global_format[global_format$Variable == "LMR_GDP_percent", "Year"],
+     scale(global_format[global_format$Variable == "LMR_GDP_percent", "Val"]),
+     type = "b", xlab = "", ylab = "")
+lines(global_format[global_format$Variable == "LMR_estab", "Year"],
+     scale(global_format[global_format$Variable == "LMR_estab", "Val"]),
+     type = "b", col = "red")
+lines(global_format[global_format$Variable == "LMR_GDP", "Year"],
+     scale(global_format[global_format$Variable == "LMR_GDP", "Val"]),
+     type = "b", col ="green")
+lines(global_format[global_format$Variable == "LMR_employ", "Year"],
+     scale(global_format[global_format$Variable == "LMR_employ", "Val"]),
+     type = "b", col = "purple")
+```
+
+
+
+####State totals
+
+```{r}
+State_LMR_sums<-aggregate(cbind(Real_GDP,Employment,Establishments) ~ year + StateAbbrv, FUN = sum, 
+                           data = enow_state[enow_state$OceanSector == "Living Resources",] )
+State_AllOcean_sums<-aggregate(Real_GDP ~ year + StateAbbrv, FUN = sum, 
+                                data = enow_state[enow_state$OceanSector == "All Ocean Sectors",] )
+
+d1<-data.frame(Year = State_LMR_sums$year,
+               Variable = "LMR_employ",
+               Val = State_LMR_sums$Employment,
+               ScaleType = "State",
+               ScaleName = State_LMR_sums$StateAbbrv,
+               ScaleName2 = "None")
+d2<-data.frame(Year = State_LMR_sums$year,
+               Variable = "LMR_estab",
+               Val = State_LMR_sums$Establishments,
+               ScaleType = "State",
+               ScaleName = State_LMR_sums$StateAbbrv,
+               ScaleName2 = "None")
+d3<-data.frame(Year = State_LMR_sums$year,
+               Variable = "LMR_GDP",
+               Val = State_LMR_sums$Real_GDP,
+               ScaleType = "State",
+               ScaleName = State_LMR_sums$StateAbbrv,
+               ScaleName2 = "None")
+d4_prep<-merge(State_LMR_sums, State_AllOcean_sums,
+       by = c("year", "StateAbbrv"))
+
+
+d4<-data.frame(Year = d4_prep$year,
+               Variable = "LMR_GDP_percent",
+               Val = d4_prep$Real_GDP.x/d4_prep$Real_GDP.y,
+               ScaleType = "State",
+               ScaleName = d4_prep$StateAbbrv,
+               ScaleName2 = "None")
+state_format<-rbind(d1,d2,d3,d4)
+
+```
+
+
+#check em out
+```{r}
+ggplot(data=state_format[state_format$Variable == "LMR_GDP",], aes(x=Year, y=Val, group = ScaleName, colour = ScaleName)) +
+  geom_line() +
+  geom_point(size=1, shape=21, fill="white") + 
+  geom_hline(yintercept = 0)
+```
+
+
+```{r}
+####By County
+setwd("~/Google Drive/DEC_Indicators/Population_Income_Ecomony/Data")
+enow<-read.csv("L1_ENOW_Sectors_2005_2016.csv",header = TRUE)
+enow[enow == -9999]<-NA###9999s mean data are not availabe or masked because of confidentiality
+enow<-enow[enow$year != 2016,]
+
+###Global totals
+states<-c("NC", "VA", "MD", "DE", "NJ", "NY", "RI", "CT", "MA", "NH", "ME")
+enow_county<-enow[enow$StateAbbrv %in% states == TRUE &
+                   enow$GeoScale == "County",]
+enow_county<-droplevels(enow_county)
+
+#this is a pain but need to add in zeros
+#bc when you aggregate years with Zero values get excluded
+enow_county$st_cty<-paste(enow_county$StateAbbrv,
+                             enow_county$GeoName)
+stcty<-unique(enow_county$st_cty)
+ddd<-enow_county[enow_county$st_cty %in% stcty[1] == TRUE,]
+df1<-data.frame(year = 2005:2015,
+                StateAbbrv = ddd$StateAbbrv[1],
+                GeoName = ddd$GeoName[1])
+for(i in 2:length(stcty)){
+  ddd<-enow_county[enow_county$st_cty %in% stcty[i] == TRUE,]
+  dfnew<-data.frame(year = 2005:2015,
+                    StateAbbrv = ddd$StateAbbrv[1],
+                  GeoName = ddd$GeoName[1])
+  df1<-rbind(dfnew,df1)
+}
+
+CLS<-aggregate(cbind(Real_GDP,Employment,Establishments) ~ year + StateAbbrv + GeoName, FUN = sum, 
+                           data = enow_county[enow_county$OceanSector == "Living Resources",])
+CLS<-merge(CLS, df1, by = c("year", "GeoName", "StateAbbrv"), all =TRUE)
+CLS[is.na(CLS)]<-0
+
+CAS<-aggregate(Real_GDP ~ year + StateAbbrv + GeoName, FUN = sum, 
+                                data = enow_county[enow_county$OceanSector == "All Ocean Sectors",] )
+CAS<-merge(CAS, df1, by = c("year", "GeoName", "StateAbbrv"), all =TRUE)
+CAS[is.na(CAS)]<-0
+
+
+names(CAS)[4]<-"Real_GDP_allOcean"
+ctd<-merge(CAS, CLS,  by = c("year", "GeoName", "StateAbbrv"))
+
+##set them up 
+d1<-data.frame(Year = ctd$year,
+               Variable = "LMR_employ",
+               Val = ctd$Employment,
+               ScaleType = "County",
+               ScaleName = paste(ctd$StateAbbrv, ctd$GeoName),
+               ScaleName2 = ctd$StateAbbrv)
+d2<-data.frame(Year = ctd$year,
+               Variable = "LMR_estab",
+               Val = ctd$Establishments,
+               ScaleType = "County",
+               ScaleName = paste(ctd$StateAbbrv, ctd$GeoName),
+               ScaleName2 = ctd$StateAbbrv)
+
+d3<-data.frame(Year = ctd$year,
+               Variable = "LMR_GDP",
+               Val = ctd$Real_GDP,
+               ScaleType = "County",
+               ScaleName = paste(ctd$StateAbbrv, ctd$GeoName),
+               ScaleName2 = ctd$StateAbbrv)
+d4<-data.frame(Year = ctd$year,
+               Variable = "LMR_GDP_percent",
+               Val = ctd$Real_GDP/ctd$Real_GDP_allOcean,
+               ScaleType = "County",
+               ScaleName = paste(ctd$StateAbbrv, ctd$GeoName),
+               ScaleName2 = ctd$StateAbbrv)
+county_format<-rbind(d1,d2,d3,d4)
+county_format[is.na(county_format)]<-0
+```
+
+
+
+###look at county level data
+```{r}
+ggplot(data=county_format[county_format$Variable == "LMR_employ" &
+                            county_format$ScaleName2 == "NY",], aes(x=Year, y=Val, group = ScaleName, colour = ScaleName)) +
+  geom_line() +
+  geom_point(size=1, shape=21, fill="white") + 
+  geom_hline(yintercept = 0)
+
+
+
+```
+
+```{r}
+ENOW<-rbind(county_format,
+      global_format,state_format)
+setwd("~/Google Drive/DEC_Indicators/FinalDatasets")
+write.csv(ENOW, "EnowData.csv")
+```
