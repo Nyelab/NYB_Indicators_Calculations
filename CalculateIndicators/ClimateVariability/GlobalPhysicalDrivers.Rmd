@@ -1,0 +1,173 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+## Global physical drivers
+
+**Kurt Heim, kurtcheim@gmail.com**
+
+**LAST UPDATED: August 29, 2019**
+
+### Datasets
+These are simple datasets that are typically pre-prepared data products. For the most part, you just need to download them from a website somewhere. See underneath each header for a description of where to find the datasets. In this I will cover
+
+1. North Atlantic Oscillation
+2. Atantic Multidecadal Oscillation
+3. Global CO2 concentration
+4. N. Position of the Gulf Stream (gulf stream index)
+5. Multivariate ENSO index
+6. Pacific Decadal Oscillation
+
+### NAO
+The NAO is annual average of relative strength between Icelandic Low and Azores High atmospheric pressure cells.This link provides a long-term dataset (since 1821) and requires copy and pasting data from ‘.html’ and reformatting in a text editor for analysis in R. [This link is directly to the html webpage with the data](https://www.esrl.noaa.gov/psd/gcos_wgsp/Timeseries/Data/nao.long.data). 
+
+This website actually seems to be updated more regularly, so this is another one to try.
+
+[this one gets updated more](https://crudata.uea.ac.uk/cru/data/nao/)
+
+Either way you need to edit in a text editor after copying the data from the .html web page.
+
+Format and view the indicator:
+```{r, message = FALSE}
+library(lubridate)
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/ClimateVariability/Data")
+nao<-read.csv("NAO_August13_2020.csv", header = TRUE)
+#replace -99.9 with 
+nao[nao < -90.0]<-NA
+nao$mean<-rowSums(nao[,2:ncol(nao)]/12, na.rm = TRUE)
+plot(nao$Year, nao$mean, type = "b")
+barplot(nao$mean)
+
+nao_format<-data.frame(Year = nao$Year,
+               Variable = "NAO",
+               Val = nao$mean,
+                Loc = "NES",
+               N = "NA")
+```
+
+### AMO
+The AMO signal reflects long term trends in sea surface temperature (SST) and is characterized by warm and cool periods, it is also related to air temperatures and rainfall over North America. It is an important driver that operates at the ‘whole ecosystem” scale. The AMO index is calculated monthly by NOAA and can be accessed at the following website(s). This web-link to access data was referenced in (NMFS 2012) so is the same dataset commonly used in reports by NMFS/NOAA. The commonly used reference that describes the AMO index is (Enfield et al. 2001). 
+
+This provides a long-term dataset (since 1856) and requires copy and pasting data from ‘.html’ and reformatting in a text editor for analysis in R. [Once at this link](https://www.esrl.noaa.gov/psd/data/timeseries/AMO/) click the “AMO unsmooth, long: Standard PSD format” version.
+
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/ClimateVariability/Data")
+amo<-read.csv("AMO_August13_2020.csv", header = TRUE)
+#replace -99.9 with 
+amo[amo < -90.0]<-NA
+amo$mean<-rowSums(amo[,2:ncol(amo)]/12)
+plot(amo$Year, amo$mean)
+barplot(amo$mean)
+
+amo_format<-data.frame(Year = amo$Year,
+               Variable = "AMO",
+               Val = amo$mean,
+              Loc = "NES",
+               N = "NA")
+range(amo_format$Year)
+```
+
+
+## CO2
+This may be a useful indictor at some point and is quite easy to get. [The link brings you directly](http://scrippsco2.ucsd.edu/assets/data/atmospheric/merged_ice_core_mlo_spo/merged_ice_core_yearly.csv) to an html page where the data can be copied, and then reformatted in a text editor to work with in R.
+
+This website has some other options that might be updated more regularly
+https://scrippsco2.ucsd.edu/data/atmospheric_co2/icecore_merged_products.html
+
+
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/ClimateVariability/Data")
+co2<-read.csv("L1_co2Concentration.csv",header = TRUE)
+co2$Year<-floor(co2$Year)
+barplot(scale(co2$C02)[,],
+        names = co2$Year)
+plot(co2$Year, co2$C02, type = 'l')#wow
+
+co2_format<-data.frame(Year = co2$Year,
+               Variable = "Co2",
+               Val = co2$C02,
+                Loc = "NES",
+               N = "NA")
+###Update for bu
+###because some years are represented twice
+nrow(co2_format[!duplicated(co2_format$Year),])#remove duplicate years
+nrow(co2_format)
+co2_format<-co2_format[!duplicated(co2_format$Year),]
+
+```
+
+
+## ENSO
+This is the Multivariate ENSO Index Version 2 (MEI.v2) from NOAA. ENSO stands for El Nino/Southern Oscillation, and is a 'naturally occuring anomalous state of tropical Pacific coupled ocean-atmosphere condtions, and is the primary predictor for global climate disruptions. 
+
+The main website describing the methods used to generate this index is [here](https://www.esrl.noaa.gov/psd/enso/mei/) and data are [available for dowload at this link](https://www.esrl.noaa.gov/psd/enso/mei/). The file is a ".txt" file and needs some minor editing in a text editor before bringing into R.
+
+
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/ClimateVariability/Data")
+enso<-read.table("meiv2_data_August13_2020.txt",header = TRUE)
+enso$mean<-rowMeans(enso[,2:13])
+barplot(enso$mean)
+
+##2020 not good
+enso<-enso[-42,]
+barplot(enso$mean)
+
+enso_format<-data.frame(Year = enso$YEAR,
+               Variable = "ENSO_meiv2",
+               Val = enso$mean,
+               Loc = "NES",
+               N = "NA")
+```
+
+## Pacific Decadal Oscillation
+Data for the [PDO index based on ERSST V5](https://www.esrl.noaa.gov/psd/pdo/) is availabe at the link. Copy and pasting to a text editor and some minor formatting is required. 
+
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/ClimateVariability/Data")
+pdo<-read.csv("PDO_August13_2020.csv",header = TRUE)
+pdo$Date<-as.Date(pdo$Date)
+pdo$Year<-year(pdo$Date)
+pdo<-pdo[pdo$Year < 2020,]
+
+pdoMean<-aggregate(PDO ~ Year, pdo,FUN = mean)
+plot(pdoMean$Year, pdoMean$PDO)
+pdo_format<-data.frame(Year = pdoMean$Year,
+               Variable = "PDO_ERSSTV5",
+               Val = pdoMean$PDO,
+              Loc = "NES",
+               N = "NA")
+```
+
+
+Put them together and save
+```{r}
+setwd("~/Desktop/NYB Indicators/Final_timeseries")
+drivers<-rbind(amo_format, nao_format, co2_format,enso_format, pdo_format)
+write.csv(drivers, "GlobalDrivers.csv")
+```
+
+End with a pretty plot
+
+```{r, echo = FALSE}
+par(mfrow=c(3,2))
+cfunk<-colorRampPalette(c("black","grey"))
+dvars<-unique(drivers$Variable)
+
+for(i in 1:5){
+  
+  scatter.smooth(drivers[drivers$Variable == dvars[i], "Year"],
+     drivers[drivers$Variable == dvars[i],"Val"],
+     axes = "FALSE", xlab = "Time", ylab = dvars[i],
+     main = dvars[i], type = 'b', pch = 19,
+     col = cfunk(10)[as.numeric(cut(drivers[drivers$Variable == dvars[i],"Val"], breaks = 10))],
+     span = .1)
+  axis(1)
+  axis(2,las = 2)
+}
+```
+
+
+
