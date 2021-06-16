@@ -1,0 +1,205 @@
+### River discharge metrics
+
+This function takes only a single input (the USGS gage # for a river of choice "in quotes") and will imports all available daily stream flow data for that site. Using this dataset, it will then calculate the following metrics. 
+
+1 date of center timing of flow mass ($date_CT), units are day of water year
+2 date of observed peak flow ($date_max_flow), units are day of water year
+3 maximum flow, ($max_flow), units are cubic feet per second
+4 number of days in the data for a water year ($n_days)
+5 mean annual flow ($mean_flow), units are cubic feet per second
+6 date of spring onset of flow ($date_spring_onset) units are day of water year
+7 total annual discharge
+
+ADDED AUG 12, center of fall flow and center of spring flow as per Hodgkins et al. 2003 which is mroe relevant to the East Coast than some of the other ones. 
+
+see Cayan et al. 2001 for spring onset of flow alogrithm description. Technically, the spring onset metric identifies the day on which the cumulative departure from the mean daily flow is most negative. This corresponds with the transition from winter low-flow conditions to the beginning of runoff in snow dominated systems but not sure how well this works in East Coast Rivers so should not be used probably.
+
+
+see Wenger et al. 2010 for center timing of flow mass (CFM) description. Technically, CFM is the date on which more than 50% of the annual flow has occured. 
+
+
+####NEW Version incorporating metrics of Hodgkins et al. 2003
+```{r}
+library(lubridate)
+library(waterData)
+library(lfstat)
+GetFlowMet<-function(gage_id){
+  
+  
+  #gage_id<-"01358000"
+  dat<-importDVs(gage_id, code="00060", stat="00003")
+  #assign water year values and reformat
+  dat$dates<-as.POSIXlt(dat$dates)
+  #dat$wyear<-water_year(dat$dates,origin="usgs")
+  #Here use DAY OF YEAR instead of water year
+  
+  
+  dat$wyear<-year(dat$dates)
+  
+  #remove na vales
+  dat<-subset(dat,val!="NA")
+  #make a vector of years
+  water.years<-unique(as.numeric(as.character(dat$wyear)))
+  dat$wyear<-as.numeric(as.character(dat$wyear))
+  #calculate metrics for first water year
+  i=1
+  w<-subset(dat,wyear==water.years[i])#get this year data
+  w$wyear.day<-1:nrow(w)#assign water year day
+  CT.df<-subset(w,w$wyear.day==1)# make dataframe
+  CT.df<-CT.df[,c("wyear","staid")]
+  CT.df$date_CT<-round(sum(w$wyear.day*w$val) /sum(w$val)) #compute CT of mass
+  CT.df$date_max_flow<-subset(w,w$val==max(w$val))[1,6] #date of max flow
+  CT.df$max_flow<-w[w$wyear.day == CT.df[1,"date_max_flow"],"val"]
+  CT.df$n_days<-nrow(w) #how many days in water year
+  CT.df$mean_flow<-mean(w$val) # mean flow
+  w$dif.mean<-w$val-CT.df[1,"mean_flow"] # diff of each day from mean flow
+  w$cum.dif<-cumsum(w$dif.mean) # cumulative sum of diff from mean
+  CT.df$date_spring_onset<-subset(w,cum.dif==min(w$cum.dif))[,6]
+  CT.df$sum_flow<-sum(w$val)
+  CT.df# this is the data for year i
+  
+  ##spring date max from Ho
+  w$yday<-yday(w$dates)
+  #spring/Winter Jan 1 to May 31
+  spring<-w[w$yday < 152,]
+  fall<-w[w$yday > 275 & w$yday < 365,]
+  
+  #Fall Oct1 to Dec 31
+  CT.df$spring_date_max<-subset(spring,spring$val==max(spring$val))[1,9]
+  CT.df$fall_date_max<-subset(fall,fall$val==max(fall$val))[1,9]
+  
+  #Spring_center
+  spring$seasonal_volume<-cumsum(spring$val)
+  thresh<-tail(spring$seasonal_volume,1)/2
+  spring$sBigz<-spring$seasonal_volume > thresh
+  sBigz<-spring[spring$sBigz == TRUE,]
+  CT.df$spring_center<-sBigz[1,9]
+  #Fall_center
+    
+    #Fall_center
+  fall$seasonal_volume<-cumsum(fall$val)
+  thresh<-tail(fall$seasonal_volume,1)/2
+  fall$sBigz<-fall$seasonal_volume > thresh
+  sBigz<-fall[fall$sBigz == TRUE,]
+  CT.df$fall_center<-sBigz[1,9]
+  #Fall_center
+  
+  ### loop through to do it for all other water years
+  for(i in 2:length(water.years)){
+    w<-subset(dat,wyear==water.years[i])#get this year data
+    w$wyear.day<-1:nrow(w)#assign water year day
+    CT.df.n<-subset(w,w$wyear.day==1)# make dataframe
+    CT.df.n<-CT.df.n[,c("wyear","staid")]
+    CT.df.n$date_CT<-round(sum(w$wyear.day*w$val) /sum(w$val)) #compute CT of mass
+    CT.df.n$date_max_flow<-subset(w,w$val==max(w$val))[1,6] #date of max flow
+    CT.df.n$max_flow<-w[w$wyear.day == CT.df.n[1,"date_max_flow"],"val"]
+    CT.df.n$n_days<-nrow(w) #how many days in water year
+    CT.df.n$mean_flow<-mean(w$val, NA.rm = TRUE) # mean flow
+    w$dif.mean<-w$val-CT.df.n[1,"mean_flow"] # diff of each day from mean flow
+    w$cum.dif<-cumsum(w$dif.mean) # cumulative sum of diff from mean
+    CT.df.n$date_spring_onset<-subset(w,cum.dif==min(w$cum.dif))[1,6]
+    CT.df.n$sum_flow<-sum(w$val)
+    
+    
+      ##spring date max from Ho
+  w$yday<-yday(w$dates)
+  #spring/Winter Jan 1 to May 31
+  spring<-w[w$yday < 152,]
+  fall<-w[w$yday > 275 & w$yday < 365,]
+  
+  #Fall Oct1 to Dec 31
+  CT.df.n$spring_date_max<-subset(spring,spring$val==max(spring$val))[1,9]
+  CT.df.n$fall_date_max<-subset(fall,fall$val==max(fall$val))[1,9]
+  
+#Spring_center
+  spring$seasonal_volume<-cumsum(spring$val)
+  thresh<-tail(spring$seasonal_volume,1)/2
+  spring$sBigz<-spring$seasonal_volume > thresh
+  sBigz<-spring[spring$sBigz == TRUE,]
+  CT.df.n$spring_center<-sBigz[1,9]
+  #Fall_center
+    
+    #Fall_center
+  fall$seasonal_volume<-cumsum(fall$val)
+  thresh<-tail(fall$seasonal_volume,1)/2
+  fall$sBigz<-fall$seasonal_volume > thresh
+  sBigz<-fall[fall$sBigz == TRUE,]
+  CT.df.n$fall_center<-sBigz[1,9]
+  #Fall_center
+    
+    
+    CT.df<-rbind(CT.df,CT.df.n)
+  }
+  
+  CT.df
+}
+```
+
+
+Use the function to calculate and format NYB indicator.
+```{r}
+#packages lfstat and waterData must be loaded
+library(lfstat)
+library(waterData)
+
+hudson<-"01358000"#Hudson River at green island
+flowdat_hudson<-GetFlowMet(hudson)#Run the function
+str(flowdat_hudson)#74 years of data
+
+#important to get rid of data from years with incomplete data
+flowdat_hudson<-subset(flowdat_hudson,flowdat_hudson$n_days >=365)# get rid of..
+cfs_to_cms<-0.0283168#conversion to metric for flow volume
+```
+
+
+
+```{r}
+plot(flowdat_hudson$wyear, flowdat_hudson$mean_flow, type = "l")
+plot(flowdat_hudson$wyear, flowdat_hudson$date_max_flow, type = "b")
+
+plot(flowdat_hudson$wyear, flowdat_hudson$spring_date_max, type = "b")
+points(flowdat_hudson$wyear, flowdat_hudson$spring_center, type = "b", col = "green")
+
+plot(flowdat_hudson$wyear, flowdat_hudson$fall_date_max, type = "b")
+points(flowdat_hudson$wyear, flowdat_hudson$fall_center, type = "b", col = "green")
+
+plot(flowdat_hudson$wyear, flowdat_hudson$fall_date_max, type = "b")
+plot(flowdat_hudson$wyear, flowdat_hudson$max_flow, type = "l")
+plot(flowdat_hudson$wyear, flowdat_hudson$date_CT, type = "l")
+```
+
+
+Convert to CMS and write to final data folder. 
+```{r}
+hud_flowMean<-data.frame(Year = flowdat_hudson$wyear,
+                        Variable = "Hudson_meanflow",
+                        Val = flowdat_hudson$mean_flow,
+                        Loc = "NYB",
+                        N = "365")
+hud_flowMAX<-data.frame(Year = flowdat_hudson$wyear,
+                        Variable = "Hudson_MAX",
+                        Val = flowdat_hudson$max_flow,
+                        Loc = "NYB",
+                        N = "365")
+hud_flowSpringCenter<-data.frame(Year = flowdat_hudson$wyear,
+                        Variable = "Hudson_SpringCenter",
+                        Val = flowdat_hudson$spring_center ,
+                        Loc = "NYB",
+                        N = "365")
+hud_flowFallCenter<-data.frame(Year = flowdat_hudson$wyear,
+                        Variable = "Hudson_FallCenter",
+                        Val = flowdat_hudson$fall_center,
+                        Loc = "NYB",
+                        N = "365")
+
+
+flow<-rbind(hud_flowMean, hud_flowMAX, hud_flowSpringCenter, hud_flowFallCenter)
+
+setwd("~/Desktop/NYB Indicators/Final_timeseries")
+write.csv(flow, "RiverFlow_AUG_12_2020.csv")
+
+
+
+###info about indicators
+hud_flowFallCenter
+```
