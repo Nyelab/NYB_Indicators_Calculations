@@ -1,6 +1,6 @@
 ## Sea Surface Temperature
 **Kurt Heim, kurtcheim@gmail.com**
-**LAST UPDATED: August 10 2020**
+**LAST UPDATED: August 30 2021 by L. Gruenburg (Lagruenburg@gmail.com)**
 
 ### Datasets
 Here I use the Optimally Interpolated Sea Surface Temperature (OISST) dataset provided by NOAA. [This is the main webpage for the dataset](https://www.ncdc.noaa.gov/oisst) for more details. It is a global dataset at 1/4 degree resolution. For each cell, there are 365 measurements per year (1 temp per day). 
@@ -49,7 +49,7 @@ OISST_sub <- function(times, mypath){
     }
 
 
-#Old version, THIS link stopped working when OISST was updated
+#Old version, THIS link stopped working when OISST was updated.  We are now using version 2.1 which was changed as of April 2020.
 #OISST_sub <- function(times, mypath){
 #  oisst_res <- griddap(x = "ncdc_oisst_v2_avhrr_by_time_zlev_lat_lon", 
 #                       url = "https://www.ncei.noaa.gov/erddap/", 
@@ -73,6 +73,7 @@ mypath<-"~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data"
   #OISST4 <- OISST_sub(c("2000-01-01T00:00:00Z", "2008-12-31T00:00:00Z"),mypath)
   #OISST5 <- OISST_sub(c("2009-01-01T00:00:00Z", "2013-12-03T00:00:00Z"),mypath)
   #OISST6 <- OISST_sub(c("2014-01-01T00:00:00Z", "2019-12-03T00:00:00Z"),mypath)
+  OISST7  <- OISST_sub(c("2020-01-01T00:00:00Z", "2020-04-01T00:00:00Z"),mypath) #most recent data update
 ```
 
 Now you have six files with long strange names saved in **mypath** so these will get used in the next step.
@@ -134,7 +135,7 @@ tlabs[is.na(tlabs$NYB),"NYB"]<-"Not in NYB"
 tlabs<-tlabs[,c(5,6,7)]
 ```
 
-All of the above code was done to make an object called **tlabs** which now will be used to label all of the points in the full OISST dataset.
+All of the above code was done to make an object called **tlabs** which now will be used to label all of the points in the full OISST dataset.  
 
 ```{r}
 ###NOW the full dataset can be brought in (all the data gathered in the first section)
@@ -148,9 +149,11 @@ d3<-OISST_prep("b0988ceaf10f0d2f3287c9d5c4c05cfd.nc")
 d4<-OISST_prep("9bd1c68f26ce957283f2705a6f4d351b.nc")
 d5<-OISST_prep("d7a66efb0dd885bc6a6745e9921b6766.nc")
 d6<-OISST_prep("9e231e194f77722b4ec78467a053baf6.nc")
+#d1-d6 are the original 6 datasets, we can add new data below as it becomes available.
+d7<-OISST_prep("OISST_2020JAN_2020APR.nc")
 
-ddd<-rbind(d1,d2,d3,d4,d5,d6)
-rm(d1,d2,d3,d4,d5,d6)
+ddd<-rbind(d1,d2,d3,d4,d5,d6,d7)
+rm(d1,d2,d3,d4,d5,d6,d7)
 nrow(ddd)
 
 ####ddd$lon<-(360-ddd$lon)*-1#convert to correct lat longNOT NEEDED
@@ -170,6 +173,6 @@ ddd<-merge(ddd,tlabs, by = "lat_lon")
 ### Then you dont need torepeat above steps next time you want to work on this
 
 setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
-write.csv(ddd, "L1_SST_data_ProcessedAUG10_2020.csv", row.names = FALSE)#takes awhile
+write.csv(ddd, "L1_SST_data_ProcessedAUG30_2021.csv", row.names = FALSE)#takes awhile
 ```
 
