@@ -7,12 +7,12 @@ York Bight”, between NYS DEC and SUNY Stony Brook School of Marine and Atmosph
 
 ## This Repository
 
-WIthin this repository there are three folders:
+Within this repository there are three folders:
 
 **1. CalculateIndicators** contains data (exceptions below*) and RScripts used to calculate the Indicators, as well as any Rfunctions used in the calculations.
 
 **2. Datasets** includes the shapefiles that describe the New York Bight area.
 
-**3. Annual Reports** contains 2019 and 2020 annual reports.
+**3. Annual Reports** contains 2019, 2020, and 2021 annual reports.
 
-_*Note some data files were too large to be included here: Phytoplankton, Water Temperature_
+_*Note some data files were too large to be included here: Phytoplankton, Water Temperature, GLORYS reanalysis for Cold Pool and Lobster Thermal Habitat_
