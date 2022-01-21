@@ -3,7 +3,7 @@ library(reshape2)
 
 library(heatwaveR)
 setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
-ddd<-read.csv("L1_SST_data_ProcessedAUG10_2020.csv", header = TRUE)#takes awhile
+ddd<-read.csv("L1_SST_data_ProcessedAUG30_2021.csv", header = TRUE)#takes awhile
 ddd$t<-as.Date(ddd$t)
 
 #####Create Single Time Series (daily avg.) for each EPU
@@ -51,6 +51,8 @@ NYB<-data.frame(Year = wholeAvg$year,
                           Loc = "NYB",
                           N = NA)
 
+write.csv(mhw$climatology,'mhw_clim_updated_AUG30_2021.csv')
+write.csv(ts,'ts_updated_AUG30_2021.csv')
 
 event_line(mhw, spread = 180, metric = "intensity_cumulative", 
            start_date = "1982-01-01", end_date = "2014-12-31")#very cool plot
@@ -107,4 +109,4 @@ points(MHWs[MHWs$Variable %in% what == TRUE & MHWs$Loc == "NES", "Year"],
 
 ###write to csv
 setwd("~/Desktop/NYB Indicators/Final_timeseries")
-write.csv(MHWs, "MarineHeatwaves_AUG_10_2020.csv")
+write.csv(MHWs, "MarineHeatwaves_AUG_31_2021.csv")

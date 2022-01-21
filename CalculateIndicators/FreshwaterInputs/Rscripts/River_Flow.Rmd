@@ -168,6 +168,68 @@ plot(flowdat_hudson$wyear, flowdat_hudson$max_flow, type = "l")
 plot(flowdat_hudson$wyear, flowdat_hudson$date_CT, type = "l")
 ```
 
+Make the plots pretty and convert to cubic meters per second
+```{r}
+library(ggplot2)
+library(mgcv)
+ggplot(flowdat_hudson, aes(x = wyear)) + geom_line(aes(y = mean_flow*cfs_to_cms), color='black') + geom_abline(intercept = -87285.42*cfs_to_cms, slope = 51.36*cfs_to_cms) + labs (y = "Mean Flow m3/s", x = 'Year', title = 'Hudson Mean Flow at Green Island') + theme(title=element_text(size = 16, face = 'bold'), axis.title=element_text(size = 14), axis.text= element_text(color = 'black', size = 12))
+
+ggplot(flowdat_hudson, aes(x = wyear, y =mean_flow*cfs_to_cms )) + geom_line(color='black') + geom_smooth(method = lm, se = FALSE, color = 'blue') + geom_smooth(method = "gam", data=flowdat_hudson, formula = y ~s(x, k=15), se = FALSE, color = 'red', linetype = 'twodash') + labs (y = "Mean Flow m3/s", x = 'Year', title = 'Hudson Mean Flow at Green Island') + theme(title=element_text(size = 16, face = 'bold'), axis.title=element_text(size = 14), axis.text= element_text(color = 'black', size = 12))
+
+
+ggplot(flowdat_hudson, aes(x = wyear, y =mean_flow*cfs_to_cms)) + geom_line(color='black') + geom_smooth(method = "gam", data=flowdat_hudson, formula = y ~s(x, k=15), se = FALSE) + labs (y = "Mean Flow m3/s", x = 'Year', title = 'Hudson Mean Flow at Green Island') + theme(title=element_text(size = 16, face = 'bold'), axis.title=element_text(size = 14), axis.text= element_text(color = 'black', size = 12))
+
+
+gam_mod<-gam(mean_flow*cfs_to_cms ~ s(wyear, k = 15), data = flowdat_hudson)
+summary(gam_mod)#check out model
+gam.check(gam_mod)
+
+ggplot(flowdat_hudson, aes(x = wyear)) + geom_line(aes(y = max_flow*cfs_to_cms), color='black') + geom_line(aes(y = date_max_flow*5), color='blue') + 
+  scale_y_continuous(
+    
+    # Features of the first axis
+    name = "Max Flow m3/s",
+    
+    # Add a second axis and specify its features
+    sec.axis = sec_axis(~.*1/5, name="Max Flow Day of Year")
+  ) + labs (x = 'Year', title = 'Hudson Max Flow at Green Island') + theme(title=element_text(size = 16, face = 'bold'), axis.title.y.right=element_text(size = 14,color='blue'), axis.text= element_text(color = 'black', size = 12))
+  
+ggplot(flowdat_hudson, aes(x = wyear)) + geom_line(aes(y = max_flow*cfs_to_cms), color='black') + geom_line(aes(y = date_max_flow*5), color='blue') + 
+  scale_y_continuous(
+    
+    # Features of the first axis
+    name = "Max Flow m3/s",
+    
+    # Add a second axis and specify its features
+    sec.axis = sec_axis(~.*1/5, name="Max Flow Day of Year")
+  ) + labs (x = 'Year', title = 'Hudson Max Flow at Green Island') + theme(title=element_text(size = 16, face = 'bold'), axis.title.y.right=element_text(size = 14,color='blue'), axis.text= element_text(color = 'black', size = 12))  
+  
+ggplot(dat, aes(x = dates, y = val*cfs_to_cms)) + geom_line() + labs(y = 'Flow Rate m3/s', x = ' ', title = 'Hudson River Flow at Green Island')+ theme(title=element_text(size = 16, face = 'bold'), axis.title=element_text(size = 14), axis.text= element_text(color = 'black', size = 12))
+
+ggplot(flowdat_hudson, aes(x = wyear)) + geom_line(aes(y = mean_flow*cfs_to_cms), color='black') + labs (y = "Mean Flow m3/s", x = 'Year', title = 'Hudson Mean Flow at Green Island') + theme(title=element_text(size = 16, face = 'bold'), axis.title=element_text(size = 14), axis.text= element_text(color = 'black', size = 12))
+
+linearMod_SC<- lm(spring_center ~ wyear, data=flowdat_hudson)
+#No Significant Linear Trend
+gam_mod_SC<-gam(spring_center ~ s(wyear, k = 3), data = flowdat_hudson)
+summary(gam_mod_SC)#check out model
+gam.check(gam_mod_SC)
+
+ggplot(flowdat_hudson, aes(x = wyear)) + geom_line(aes(y = spring_center), color='black') + labs (y = "Day of Year", x = 'Year', title = 'Spring Center Flow Volume') + theme(title=element_text(size = 16, face = 'bold'), axis.title=element_text(size = 14), axis.text= element_text(color = 'black', size = 12))
+
+ggplot(flowdat_hudson, aes(x = wyear, y =spring_center)) + geom_line(color='black') + geom_smooth(method = "gam", data=flowdat_hudson, formula = y ~s(x, k=3), se = FALSE, color = 'red', linetype = 'twodash') + labs (y = "Day of Year", x = 'Year', title = 'Spring Center Flow Volume') + theme(title=element_text(size = 16, face = 'bold'), axis.title=element_text(size = 14), axis.text= element_text(color = 'black', size = 12))
+
+
+linearMod_FC<- lm(fall_center ~ wyear, data=flowdat_hudson)
+#No significant linear trend
+gam_mod_FC<-gam(fall_center ~ s(wyear, k = 3), data = flowdat_hudson)
+summary(gam_mod_FC)#check out model
+gam.check(gam_mod_FC)
+gam_mod.d <- Deriv(gam_mod, n = 200)
+
+ggplot(flowdat_hudson, aes(x = wyear)) + geom_line(aes(y = fall_center), color='black') + labs (y = "Day of Year", x = 'Year', title = 'Fall Center Flow Volume') + theme(title=element_text(size = 16, face = 'bold'), axis.title=element_text(size = 14), axis.text= element_text(color = 'black', size = 12))
+
+ggplot(flowdat_hudson, aes(x = wyear, y =fall_center)) + geom_line(color='black') + geom_smooth(method = "gam", data=flowdat_hudson, formula = y ~s(x, k=3), se = FALSE, color = 'red', linetype = 'twodash') + labs (y = "Day of Year", x = 'Year', title = 'Fall Center Flow Volume') + theme(title=element_text(size = 16, face = 'bold'), axis.title=element_text(size = 14), axis.text= element_text(color = 'black', size = 12))
+```
 
 Convert to CMS and write to final data folder. 
 ```{r}
@@ -196,7 +258,7 @@ hud_flowFallCenter<-data.frame(Year = flowdat_hudson$wyear,
 flow<-rbind(hud_flowMean, hud_flowMAX, hud_flowSpringCenter, hud_flowFallCenter)
 
 setwd("~/Desktop/NYB Indicators/Final_timeseries")
-write.csv(flow, "RiverFlow_AUG_12_2020.csv")
+write.csv(flow, "RiverFlow_AUG_12_2020.csv") #Don't forget to change the name each year!
 
 
 

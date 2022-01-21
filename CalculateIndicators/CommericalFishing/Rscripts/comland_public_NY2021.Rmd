@@ -1,0 +1,339 @@
+## Description: Commerical landings, public data
+
+**Indicator category**: Data download from web, summary analysis
+
+**Contributor(s)**: Kurt Heim
+
+**Data steward**: NOAA and available [here](https://foss.nmfs.noaa.gov/apexfoss/f?p=215:200:1514889455251::NO:::) 
+
+### Datasets available
+A commerical landings data set is available from NOAA Fisheries. This is a publicly available dataset that excludes all confidential information regarding where fish are caught. The data are summarized by where fish are **landed**, not where they are **caught**, so the dataset is not necessarily ideal. However, it is very easy to access and should be available without a doubt for the forseeable future. According to the [website](https://foss.nmfs.noaa.gov/apexfoss/f?p=215:240:1514889455251::NO:::)  
+
+"Total landings by state include confidential data and will be accurate, but landings reported by individual species may, in some instances, be misleading due to data confidentiality."
+
+Therefore, I will only use these data at the state level (aggregating species) at a minimum spatial scale. As described in the metadata, aggergating by species and state will include the confidential data and be accurate. 
+
+### Other datasets to explore
+For the **NY Ocean Indicator project**, additional work would need to be done to generate a more accurate indicator reflecting commerical landings from only the spatial region of interest (i.e., the New York Bight). The [NOAA IEA for the Mid-Atlantic](https://www.integratedecosystemassessment.noaa.gov/regions/northeast/reports) uses a dataset called comlands that contains confidential information, that is described in detail [here](https://noaa-edab.github.io/tech-doc/comdat.html) and the data steward is Sean Lucey, Sean.Lucey@noaa.gov. I recon that the comlands data could be simply queried for statistical areas in NY Bight.
+
+The NY Bight primarily includes statistical areas 612, 613, 615, 616, 537; however, it also overlaps the corners of 611, 533 , 534, 623, and 622. Decisions would need to be made on how to best query comland dataset for a NY Bight specific commercial indicator. 
+
+### Getting the dataset
+To access the aformetioned publicly acsessible total landings data by state, go [here](https://foss.nmfs.noaa.gov/apexfoss/f?p=215:200:1514889455251::NO:::) and use the double left pointing arrow (>>) to push all years over to the right. Use the >> to push all states over, and select ALL SPECIES from the species category. Then, click format and download, and choose .csv file type. This file will save to your dowloads, and will probaably be titled "landings.csv". It is pretty lame, but the number values of "Dollars" and "Pounds" have commas in them. The script will address this. 
+
+### What this code does
+This code imports the data, removes the commas from the non-numeric fields, and them sums the data by year and state. There were negative values for some things that didnt make sense, so these were changed to zero. A few example plots show the final datasets. Lastly, the data are reworked into the standard format for saving. 
+
+### Data preparation
+```{r setup}
+library(ggplot2)
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/CommericalFishing/Data")
+land<-read.csv("landings.csv")
+
+land$KG<-as.numeric(gsub(",","",land$Pounds))#remove commas, make numeric
+land$USD<-as.numeric(gsub(",","",land$Dollars))#remove commas, make numeric
+
+land[is.na(land$USD),"USD"]<-0#change na values to zero
+land[is.na(land$KG),"KG"]<-0#change na values to zero
+
+#look at some of the stats to find errors
+min(land$KG, na.rm = TRUE)#There are negative landings vales, this should not be possible
+max(land$KG, na.rm = TRUE)#3 billion pounds is maximum state/year landings. This is OK because its from Alaska Pollock. 
+#http://www.alaskajournal.com/2017-11-08/report-alaska-tops-nation-total-fishing-volume-20th-year
+
+#look at negative data points
+head(land[land$KG < 0,])#top five rows of negative values
+nrow(land[land$KG < 0,])#34 negative points total
+#so, I looked these up in the original dataset (on the website viewer) and they appear negative there
+#this is not an error with my script but with the orignal data product
+
+land<-land[land$KG >= 0,]#only keep rows with positive values of KG
+
+#lookat the commerical landings value dataset
+max(land$USD)#wow thats alot of money, again it is associated with AK Pollock
+min(land$USD,na.rm = TRUE)#ok but these are not good (negative values of $$)
+land[land$USD < 0,]# several are errors in orignial dataset (I checked online)
+land[land$USD <0, "USD"]<-0 #change to zero
+```
+
+### Data summary
+```{r}
+MAFMC<-c("New York", "New Jersey", "Pennsylvania", "Delaware", "Maryland", "Virginia", "North Carolina")
+NEFMC<-c("Maine", "New Hampshire", "Massachusetts", "Rhode Island", "Connecticut")
+stat1<-data.frame(State.Name = MAFMC, Scale2 = rep("MAFMC",7))
+stat2<-data.frame(State.Name = NEFMC, Scale2 = rep("NEFMC",5))
+state_where<-rbind(stat1,stat2)
+land<-merge(land, state_where, by = "State.Name")
+
+landsumST<-aggregate(cbind(KG,USD) ~ Year + State.Name + Scale2, land[land$State.Name %in% c(MAFMC,NEFMC) == TRUE,], FUN = sum)#get state totals
+landsumCouncil<-aggregate(cbind(KG,USD) ~ Year + Scale2, land[land$State.Name %in% c(MAFMC,NEFMC) == TRUE,], FUN = sum)#get MAFMC totals
+landsumTot<-aggregate(cbind(KG,USD) ~ Year, land[land$State.Name %in% c(MAFMC,NEFMC) == TRUE,], FUN = sum)
+
+###Adjust datasets for inflation
+library(blscrapeR)#gets data from bureau of labor statistics
+#This provides correction factors to adjust nominal dolars to values in a year of choice
+inflate_data<-inflation_adjust(2018)#Convert to 2018 dollars
+correction<-data.frame(Year = inflate_data$year, #A dataset to correct with
+             adj = inflate_data$avg_cpi/100)
+
+#Make the adjustments
+landsumST<-merge(landsumST,correction, by = "Year")
+landsumST$USD_adj<-landsumST$USD/landsumST$adj
+
+landsumCouncil<-merge(landsumCouncil,correction, by = "Year")
+landsumCouncil$USD_adj<-landsumCouncil$USD/landsumCouncil$adj
+
+landsumTot<-merge(landsumTot, correction, by = "Year")
+landsumTot$USD_adj<-landsumTot$USD/landsumTot$adj
+```
+
+
+### View the datasets
+Show a few plots of the datasets
+```{r}
+ggplot(data=landsumST, aes(x=Year, y=KG, group = State.Name, colour = State.Name)) +
+  geom_line() + theme_classic()
+ggplot(data=landsumST, aes(x=Year, y=USD_adj, group = State.Name, colour = State.Name)) +
+  geom_line()+ theme_classic()
+ggplot(data=landsumCouncil, aes(x=Year, y=KG, group = Scale2, colour = Scale2)) +
+  geom_line()+ theme_classic()
+ggplot(data=landsumCouncil, aes(x=Year, y=USD_adj, group = Scale2, colour = Scale2)) +
+  geom_line()+ theme_classic()
+ggplot(data=landsumTot, aes(x=Year, y=USD_adj)) +
+  geom_line()+ theme_classic()
+ggplot(data=landsumTot, aes(x=Year, y=KG)) +
+  geom_line()+ theme_classic()
+```
+
+### Save dataset in standard format
+```{r}
+#State, KG
+d1<-data.frame(Year = landsumST$Year,
+               Variable = "Landings_KG",
+               Val = landsumST$KG,
+               ScaleType = "State",
+               ScaleName = landsumST$State.Name,#state name scale 1
+               ScaleName2 = landsumST$Scale2,#council membership scale 2
+               ScaleName3 = "NES_LME_states") #NES all
+#Council, KG
+d2<-data.frame(Year = landsumCouncil$Year,
+               Variable = "Landings_KG",
+               Val = landsumCouncil$KG,
+               ScaleType = "FMC",
+               ScaleName = landsumCouncil$Scale2, #Which council
+               ScaleName2 = "NES_LME_states", #NES all
+               ScaleName3 = "None")
+#ALL NES, KG
+d3<-data.frame(Year = landsumTot$Year,
+               Variable = "Landings_KG",
+               Val = landsumTot$KG,
+               ScaleType = "Global",
+               ScaleName = "NES_LME_states", #NEShelf LME states
+               ScaleName2 = "None",
+               ScaleName3 = "None")
+#State, USD
+d4<-data.frame(Year = landsumST$Year,
+               Variable = "Landings_USD",
+               Val = landsumST$USD_adj,
+               ScaleType = "State",
+               ScaleName = landsumST$State.Name, #name of the state
+               ScaleName2 = landsumST$Scale2,# Name of the council the state is in
+               ScaleName3 = "NES_LME_states") 
+#Councils, USD
+d5<-data.frame(Year = landsumCouncil$Year,
+               Variable = "Landings_USD",
+               Val = landsumCouncil$USD_adj,
+               ScaleType = "FMC", 
+               ScaleName = landsumCouncil$Scale2,#name of the council
+               ScaleName2 = "NES_LME_states",
+               ScaleName3 = "None")
+#NES, USD
+d6<-data.frame(Year = landsumTot$Year,
+               Variable = "Landings_USD",
+               Val = landsumTot$USD_adj,
+               ScaleType = "Global",
+               ScaleName = "NES_LME_states",
+               ScaleName2 = "None",
+               ScaleName3 = "None")
+
+
+```
+
+That was the old format; here is the new format and write to file.
+```{r}
+setwd("~/Google Drive/DEC_Indicators/FinalDatasets")
+landings<-rbind(d1,d2,d3,d4,d5,d6)
+head(landings)
+
+
+ppp<-data.frame(Year = landings$Year,
+               Variable = landings$Variable,
+                 Val = landings$Val,
+              Loc = landings$ScaleName,
+               N = "NA")
+unique(ppp$Loc)
+ppp<-ppp[ppp$Loc %in% c("New York", "MAFMC") == TRUE,]
+setwd("~/Desktop/NYB Indicators/Final_timeseries")
+write.csv(ppp, "comercialLand_September20.csv")
+```
+
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/CommericalFishing/Data")
+land<-read.csv("foss_landings_2021.csv")
+
+land$KG<-as.numeric(gsub(",","",land$Pounds))#remove commas, make numeric
+land$USD<-as.numeric(gsub(",","",land$Dollars))#remove commas, make numeric
+
+land[is.na(land$USD),"USD"]<-0#change na values to zero
+land[is.na(land$KG),"KG"]<-0#change na values to zero
+
+#look at some of the stats to find errors
+#min(land$KG, na.rm = TRUE)#There are negative landings vales, this should not be possible
+#max(land$KG, na.rm = TRUE)#3 billion pounds is maximum state/year landings. This is OK because its from Alaska Pollock. 
+#http://www.alaskajournal.com/2017-11-08/report-alaska-tops-nation-total-fishing-volume-20th-year
+
+#look at negative data points
+#head(land[land$KG < 0,])#top five rows of negative values
+#nrow(land[land$KG < 0,])#34 negative points total
+#so, I looked these up in the original dataset (on the website viewer) and they appear negative there
+#this is not an error with my script but with the orignal data product
+
+#land<-land[land$KG >= 0,]#only keep rows with positive values of KG
+
+#lookat the commerical landings value dataset
+#max(land$USD)#wow thats alot of money, again it is associated with AK Pollock
+#min(land$USD,na.rm = TRUE)#ok but these are not good (negative values of $$)
+#land[land$USD < 0,]# several are errors in orignial dataset (I checked online)
+#land[land$USD <0, "USD"]<-0 #change to zero
+```
+
+### Data summary
+```{r}
+#MAFMC<-c("New York", "New Jersey", "Pennsylvania", "Delaware", "Maryland", "Virginia", "North Carolina")
+#NEFMC<-c("Maine", "New Hampshire", "Massachusetts", "Rhode Island", "Connecticut")
+#stat1<-data.frame(State.Name = MAFMC, Scale2 = rep("MAFMC",7))
+#stat2<-data.frame(State.Name = NEFMC, Scale2 = rep("NEFMC",5))
+#state_where<-rbind(stat1,stat2)
+#land<-merge(land, state_where, by = "State.Name")
+
+#landsumST<-aggregate(cbind(KG,USD) ~ Year + State.Name + Scale2, land[land$State.Name %in% c(MAFMC,NEFMC) == TRUE,], FUN = sum)#get state totals
+#landsumCouncil<-aggregate(cbind(KG,USD) ~ Year + Scale2, land[land$State.Name %in% c(MAFMC,NEFMC) == TRUE,], FUN = sum)#get MAFMC totals
+#landsumTot<-aggregate(cbind(KG,USD) ~ Year, land[land$State.Name %in% c(MAFMC,NEFMC) == TRUE,], FUN = sum)
+
+###Adjust datasets for inflation
+# Apparently this library was removed for some kind of policy violation in July of 2021, so this will not take inflation into account for Indicator Report 2021
+#library(blscrapeR)#gets data from bureau of labor statistics
+#This provides correction factors to adjust nominal dolars to values in a year of choice
+#inflate_data<-inflation_adjust(2018)#Convert to 2018 dollars
+#correction<-data.frame(Year = inflate_data$year, #A dataset to correct with
+#             adj = inflate_data$avg_cpi/100)
+
+#Make the adjustments
+landsumST<-merge(landsumST,correction, by = "Year")
+landsumST$USD_adj<-landsumST$USD/landsumST$adj
+
+landsumCouncil<-merge(landsumCouncil,correction, by = "Year")
+landsumCouncil$USD_adj<-landsumCouncil$USD/landsumCouncil$adj
+
+landsumTot<-merge(landsumTot, correction, by = "Year")
+landsumTot$USD_adj<-landsumTot$USD/landsumTot$adj
+```
+
+
+### View the datasets
+Show a few plots of the datasets
+```{r}
+ggplot(data=landsumST, aes(x=Year, y=KG, group = State.Name, colour = State.Name)) +
+  geom_line() + theme_classic()
+ggplot(data=landsumST, aes(x=Year, y=USD_adj, group = State.Name, colour = State.Name)) +
+  geom_line()+ theme_classic()
+ggplot(data=landsumCouncil, aes(x=Year, y=KG, group = Scale2, colour = Scale2)) +
+  geom_line()+ theme_classic()
+ggplot(data=landsumCouncil, aes(x=Year, y=USD_adj, group = Scale2, colour = Scale2)) +
+  geom_line()+ theme_classic()
+ggplot(data=landsumTot, aes(x=Year, y=USD_adj)) +
+  geom_line()+ theme_classic()
+ggplot(data=landsumTot, aes(x=Year, y=KG)) +
+  geom_line()+ theme_classic()
+```
+
+### Save dataset in standard format
+```{r}
+#State, KG
+d1<-data.frame(Year = landsumST$Year,
+               Variable = "Landings_KG",
+               Val = landsumST$KG,
+               ScaleType = "State",
+               ScaleName = landsumST$State.Name,#state name scale 1
+               ScaleName2 = landsumST$Scale2,#council membership scale 2
+               ScaleName3 = "NES_LME_states") #NES all
+#Council, KG
+d2<-data.frame(Year = landsumCouncil$Year,
+               Variable = "Landings_KG",
+               Val = landsumCouncil$KG,
+               ScaleType = "FMC",
+               ScaleName = landsumCouncil$Scale2, #Which council
+               ScaleName2 = "NES_LME_states", #NES all
+               ScaleName3 = "None")
+#ALL NES, KG
+d3<-data.frame(Year = landsumTot$Year,
+               Variable = "Landings_KG",
+               Val = landsumTot$KG,
+               ScaleType = "Global",
+               ScaleName = "NES_LME_states", #NEShelf LME states
+               ScaleName2 = "None",
+               ScaleName3 = "None")
+#State, USD
+d4<-data.frame(Year = landsumST$Year,
+               Variable = "Landings_USD",
+               Val = landsumST$USD_adj,
+               ScaleType = "State",
+               ScaleName = landsumST$State.Name, #name of the state
+               ScaleName2 = landsumST$Scale2,# Name of the council the state is in
+               ScaleName3 = "NES_LME_states") 
+#Councils, USD
+d5<-data.frame(Year = landsumCouncil$Year,
+               Variable = "Landings_USD",
+               Val = landsumCouncil$USD_adj,
+               ScaleType = "FMC", 
+               ScaleName = landsumCouncil$Scale2,#name of the council
+               ScaleName2 = "NES_LME_states",
+               ScaleName3 = "None")
+#NES, USD
+d6<-data.frame(Year = landsumTot$Year,
+               Variable = "Landings_USD",
+               Val = landsumTot$USD_adj,
+               ScaleType = "Global",
+               ScaleName = "NES_LME_states",
+               ScaleName2 = "None",
+               ScaleName3 = "None")
+
+
+d1<-data.frame(Year = land$Year,
+               Variable = "KG",
+               Val = land$KG)
+d2<-data.frame(Year = land$Year,
+               Variable = "USD",
+               Val = land$USD)
+landings = rbind(d1,d2)
+setwd("~/Desktop/NYB Indicators/Final_Timeseries")
+write.csv(landings, 'commercial_landings_Jan_06_2022.csv')
+```
+
+That was the old format; here is the new format and write to file.
+```{r}
+setwd("~/Google Drive/DEC_Indicators/FinalDatasets")
+landings<-rbind(d1,d2,d3,d4,d5,d6)
+head(landings)
+
+
+ppp<-data.frame(Year = landings$Year,
+               Variable = landings$Variable,
+                 Val = landings$Val,
+              Loc = landings$ScaleName,
+               N = "NA")
+unique(ppp$Loc)
+ppp<-ppp[ppp$Loc %in% c("New York", "MAFMC") == TRUE,]
+setwd("~/Desktop/NYB Indicators/Final_timeseries")
+write.csv(ppp, "comercialLand_September20.csv")
+```

@@ -1,5 +1,5 @@
 setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
-ddd<-read.csv("L1_SST_data_ProcessedAUG10_2020.csv", header = TRUE)#takes awhile
+ddd<-read.csv("L1_SST_data_ProcessedAUG30_2021.csv", header = TRUE)#takes awhile
 
 ####The Seasons
 ddd$season<-NA
@@ -68,4 +68,4 @@ plot(SSTindicators[SSTindicators$Variable == "summer_OISST", "Year"],
 
 #write combined dataset to file
 setwd("~/Desktop/NYB Indicators/Final_timeseries")
-write.csv(SSTindicators, "OISST_Means_AUG_10_2020.csv")
+write.csv(SSTindicators, "OISST_Means_AUG_31_2021.csv")
