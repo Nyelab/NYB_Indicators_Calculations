@@ -9,6 +9,7 @@ library(stringr)
 library(ncdf4)
 library(lubridate)
 library(tidyverse)
+library(seas)
 
 # Available stations can be viewed and metadata availabe at https://www.ndbc.noaa.gov
 
@@ -132,6 +133,90 @@ rawdat$year <- format(rawdat$time, "%Y")
 rawdat$date <- rawdat$datetime
 rawdat$seas <- mkseas(x = rawdat, width = "DJF")
 df2 <- aggregate(wind_stress ~ seas + year, data = rawdat, mean)
+df3 <- aggregate(wind_dir ~ seas + year, data = rawdat, mean)
+df4 <- aggregate(wind_spd ~ seas + year, data = rawdat, mean)
+wind_spd = df4$wind_spd[1:142]
+df5 = cbind(df3, wind_spd)
+
+df5$wind_dir[df5$wind_dir == 0] <- 360
+df5$u <- (1 * df5$wind_spd) * sin((df5$wind_dir * pi / 180.0))
+df5$v <- (1 * df5$wind_spd) * cos((df5$wind_dir * pi / 180.0))
+
+wind_winter = df5[df5$seas == 'DJF',]
+wind_spring = df5[df5$seas == 'MAM',]
+wind_summer = df5[df5$seas == 'JJA',]
+wind_fall = df5[df5$seas == 'SON',]
+wind_scale <- 1
+y_axis <- seq(-10, 5, 5)
+ggplot(data = wind_winter, aes(x = year, y = y_axis)) +
+  # Here we create the wind vectors as a series of segments with arrow tips
+  geom_segment(aes(x = year, xend = year + u*wind_scale, y = 0, yend = v*wind_scale), 
+               arrow = arrow(length = unit(0.15, 'cm')), size = 0.5, alpha = 0.7) +
+  # I think adding points at the base of the vectors makes the figure easier to read
+  geom_point(aes(x = year, y = 0), alpha = 0.5, size = 1) +
+  # Changing the dates to better match the range shown on the x axis
+  #scale_x_date(labels = date_format('%Y-%m-%d'), breaks = date_breaks('4 days')) +
+  # Change the y axis labels to make sense
+  scale_y_continuous(breaks = y_axis, labels = as.character(abs(y_axis)/wind_scale)) +
+  # Change the x and y axis labels
+  labs(x = NULL, y = 'Wind Speed (m/s)', title = 'Winter') +
+  coord_equal(ylim = c(min(y_axis/wind_scale), max(y_axis/wind_scale))) +
+  theme(axis.text.x = element_text(angle = 20, hjust = 0.4, vjust = 0.5, size = 8),
+        axis.text.y = element_text(size = 8),
+  plot.title=element_text(size = 16,face = 'bold',hjust = 0.5), axis.title=element_text(size = 14, face = 'bold'), axis.text= element_text(color = 'black', size = 12))
+
+
+ggplot(data = wind_spring, aes(x = year, y = y_axis)) +
+  # Here we create the wind vectors as a series of segments with arrow tips
+  geom_segment(aes(x = year, xend = year + u*wind_scale, y = 0, yend = v*wind_scale), 
+               arrow = arrow(length = unit(0.15, 'cm')), size = 0.5, alpha = 0.7) +
+  # I think adding points at the base of the vectors makes the figure easier to read
+  geom_point(aes(x = year, y = 0), alpha = 0.5, size = 1) +
+  # Changing the dates to better match the range shown on the x axis
+  #scale_x_date(labels = date_format('%Y-%m-%d'), breaks = date_breaks('4 days')) +
+  # Change the y axis labels to make sense
+  scale_y_continuous(breaks = y_axis, labels = as.character(abs(y_axis)/wind_scale)) +
+  # Change the x and y axis labels
+  labs(x = NULL, y = 'Wind Speed (m/s)', title = 'Spring') +
+  coord_equal(ylim = c(min(y_axis/wind_scale), max(y_axis/wind_scale))) +
+  theme(axis.text.x = element_text(angle = 20, hjust = 0.4, vjust = 0.5, size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title=element_text(size = 16,face = 'bold',hjust = 0.5), axis.title=element_text(size = 14, face = 'bold'), axis.text= element_text(color = 'black', size = 12))
+
+ggplot(data = wind_summer, aes(x = year, y = y_axis)) +
+  # Here we create the wind vectors as a series of segments with arrow tips
+  geom_segment(aes(x = year, xend = year + u*wind_scale, y = 0, yend = v*wind_scale), 
+               arrow = arrow(length = unit(0.15, 'cm')), size = 0.5, alpha = 0.7) +
+  # I think adding points at the base of the vectors makes the figure easier to read
+  geom_point(aes(x = year, y = 0), alpha = 0.5, size = 1) +
+  # Changing the dates to better match the range shown on the x axis
+  #scale_x_date(labels = date_format('%Y-%m-%d'), breaks = date_breaks('4 days')) +
+  # Change the y axis labels to make sense
+  scale_y_continuous(breaks = y_axis, labels = as.character(abs(y_axis)/wind_scale)) +
+  # Change the x and y axis labels
+  labs(x = NULL, y = 'Wind Speed (m/s)', title = 'Summer') +
+  coord_equal(ylim = c(min(y_axis/wind_scale), max(y_axis/wind_scale))) +
+  theme(axis.text.x = element_text(angle = 20, hjust = 0.4, vjust = 0.5, size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title=element_text(size = 16,face = 'bold',hjust = 0.5), axis.title=element_text(size = 14, face = 'bold'), axis.text= element_text(color = 'black', size = 12))
+
+ggplot(data = wind_fall, aes(x = year, y = y_axis)) +
+  # Here we create the wind vectors as a series of segments with arrow tips
+  geom_segment(aes(x = year, xend = year + u*wind_scale, y = 0, yend = v*wind_scale), 
+               arrow = arrow(length = unit(0.15, 'cm')), size = 0.5, alpha = 0.7) +
+  # I think adding points at the base of the vectors makes the figure easier to read
+  geom_point(aes(x = year, y = 0), alpha = 0.5, size = 1) +
+  # Changing the dates to better match the range shown on the x axis
+  #scale_x_date(labels = date_format('%Y-%m-%d'), breaks = date_breaks('4 days')) +
+  # Change the y axis labels to make sense
+  scale_y_continuous(breaks = y_axis, labels = as.character(abs(y_axis)/wind_scale)) +
+  # Change the x and y axis labels
+  labs(x = NULL, y = 'Wind Speed (m/s)', title = 'Autumn') +
+  coord_equal(ylim = c(min(y_axis/wind_scale), max(y_axis/wind_scale))) +
+  theme(axis.text.x = element_text(angle = 20, hjust = 0.4, vjust = 0.5, size = 8),
+        axis.text.y = element_text(size = 8),
+        plot.title=element_text(size = 16,face = 'bold',hjust = 0.5), axis.title=element_text(size = 14, face = 'bold'), axis.text= element_text(color = 'black', size = 12))
+
 
 ###write to csv
 setwd("~/Desktop/NYB Indicators/Final_timeseries")
