@@ -1,3 +1,9 @@
+## Figures for Northern to Southern Species Ratio
+
+## **Laura Gruenburg, lagruenburg@gmail.com**
+
+#   **LAST UPDATED: October 21, 2022**
+
 ###load required functions
 #  You will need to download the functions from here https://gist.github.com/gavinsimpson/e73f011fdaaab4bb5a30
 
@@ -15,10 +21,6 @@ ds_n<-read.csv("north_spring_2022.csv", header = TRUE)
 ds_s<-read.csv('south_spring_2022.csv', header = TRUE)
 
 n_to_s = ds_n$strat.biomass / ds_s$strat.biomass
-
-# Your final time series is (hopefully) a dataframe with a column for the YEAR 
-# and a column for whatever the data variable is.  Here I give an example using 
-# Hudson river mean flow data where one column is YEAR and the other is flowrate
 
 # Creat a GAM - adjust k and remember to check model
 mod<- gam(ratio ~ s(YEAR, k=10), data = ds_n)

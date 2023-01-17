@@ -1,3 +1,9 @@
+## Figures for Recreational Fishing
+
+## **Laura Gruenburg, lagruenburg@gmail.com**
+
+#   **LAST UPDATED: January 9, 2023**
+
 #####load required functions
 #  You will need to download the functions from here https://gist.github.com/gavinsimpson/e73f011fdaaab4bb5a30
 
@@ -17,9 +23,6 @@ Catch <- RF[RF$Variable == 'RecCatch_N', ]
 Harv <- RF[RF$Variable == 'Rec_HarvN',]
 P_Release <- RF[RF$Variable == 'RecRelease_Pct',]
 P_Release$Val <- P_Release$Val * 100 # turn fraction into percent
-# Your final time series is (hopefully) a dataframe with a column for the year 
-# and a column for whatever the data variable is.  Here I give an example using 
-# Hudson river mean flow data where one column is year and the other is flowrate
 
 # Creat a GAM - adjust k and remember to check model
 mod_cr<- gam(Val ~ s(Year, k=10), data = Release)
@@ -28,7 +31,7 @@ gam.check(mod_cr)
 
 pdata_cr <- with(Release, data.frame(Year = Year))
 p2_mod_cr <- predict(mod_cr, newdata = pdata_cr,  type = "terms", se.fit = TRUE)
-intercept_cr = 31316975  # look at p2_mod and extract the intercept
+intercept_cr = 32232267  # look at p2_mod and extract the intercept
 pdata_cr <- transform(pdata_cr, p2_mod_cr = p2_mod_cr$fit[,1], se2 = p2_mod_cr$se.fit[,1])
 
 #  Now that we have the model prediction, the next step is to calculate the first derivative
@@ -70,7 +73,7 @@ gam.check(mod_pr)
 
 pdata_pr <- with(P_Release, data.frame(Year = Year))
 p2_mod_pr <- predict(mod_pr, newdata = pdata_pr,  type = "terms", se.fit = TRUE)
-intercept_pr = 60.60754  # look at p2_mod and extract the intercept
+intercept_pr = 60.74765  # look at p2_mod and extract the intercept
 pdata_pr <- transform(pdata_pr, p2_mod_pr = p2_mod_pr$fit[,1], se2 = p2_mod_pr$se.fit[,1])
 
 #  Now that we have the model prediction, the next step is to calculate the first derivative
@@ -113,7 +116,7 @@ gam.check(mod_hr)
 
 pdata_hr <- with(Harv, data.frame(Year = Year))
 p2_mod_hr <- predict(mod_hr, newdata = pdata_hr,  type = "terms", se.fit = TRUE)
-intercept_hr = 19105734   # look at p2_mod and extract the intercept
+intercept_hr = 19463397   # look at p2_mod and extract the intercept
 pdata_hr <- transform(pdata_hr, p2_mod_hr = p2_mod_hr$fit[,1], se2 = p2_mod_hr$se.fit[,1])
 
 #  Now that we have the model prediction, the next step is to calculate the first derivative
@@ -154,7 +157,7 @@ gam.check(mod_ct)
 
 pdata_ct <- with(Catch, data.frame(Year = Year))
 p2_mod_ct <- predict(mod_ct, newdata = pdata_ct,  type = "terms", se.fit = TRUE)
-intercept_ct =  50422709  # look at p2_mod and extract the intercept
+intercept_ct =  51695664   # look at p2_mod and extract the intercept
 pdata_ct <- transform(pdata_ct, p2_mod_ct = p2_mod_ct$fit[,1], se2 = p2_mod_ct$se.fit[,1])
 
 #  Now that we have the model prediction, the next step is to calculate the first derivative

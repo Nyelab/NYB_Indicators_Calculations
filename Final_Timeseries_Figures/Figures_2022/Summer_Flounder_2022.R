@@ -1,3 +1,9 @@
+## Figures for Summer Flounder
+
+## **Laura Gruenburg, lagruenburg@gmail.com**
+
+#   **LAST UPDATED: October 21, 2022**
+
 ###load required functions
 #  You will need to download the functions from here https://gist.github.com/gavinsimpson/e73f011fdaaab4bb5a30
 

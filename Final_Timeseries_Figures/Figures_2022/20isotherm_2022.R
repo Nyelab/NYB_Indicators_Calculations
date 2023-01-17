@@ -1,5 +1,8 @@
-## Created by L. Gruenburg
-# Last edited 8/29/2022
+## Figures for 20C Isotherm
+
+## **Laura Gruenburg, lagruenburg@gmail.com**
+  
+##   **LAST UPDATED: 8/29/2022**
 
 #####load required functions
 #  You will need to download the functions from here https://gist.github.com/gavinsimpson/e73f011fdaaab4bb5a30
@@ -16,9 +19,6 @@ setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Fig
 isotherm<-read.csv("Iso20_Aug_26_2022.csv", header = TRUE)
 
 names(isotherm)[names(isotherm) == "X"] <- "Year"
-# Your final time series is (hopefully) a dataframe with a column for the year 
-# and a column for whatever the data variable is.  Here I give an example using 
-# Hudson river mean flow data where one column is year and the other is flowrate
 
 # NO GAM on JJA_lon
 # Creat a GAM - adjust k and remember to check model

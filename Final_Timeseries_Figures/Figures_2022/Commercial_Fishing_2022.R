@@ -1,3 +1,9 @@
+## Figures for Commercial Fishing
+
+## **Laura Gruenburg, lagruenburg@gmail.com**
+
+#   **LAST UPDATED: August 30, 2022**
+
 #####load required functions
 #  You will need to download the functions from here https://gist.github.com/gavinsimpson/e73f011fdaaab4bb5a30
 
@@ -12,10 +18,6 @@ library(ggplot2)
 setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2022/")
 Landings<-read.csv("Commercial_Landings_2022.csv", header = TRUE)
 Landings
-
-# Your final time series is (hopefully) a dataframe with a column for the year 
-# and a column for whatever the data variable is.  Here I give an example using 
-# Hudson river mean flow data where one column is year and the other is flowrate
 
 # Start with KG
 # Creat a GAM - adjust k and remember to check model

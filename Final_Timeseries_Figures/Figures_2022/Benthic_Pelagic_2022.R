@@ -1,3 +1,10 @@
+## Figures for Ratio of benthic to pelagic
+
+## **Laura Gruenburg, lagruenburg@gmail.com**
+
+#   **LAST UPDATED: October 24, 2022**
+
+
 ###load required functions
 #  You will need to download the functions from here https://gist.github.com/gavinsimpson/e73f011fdaaab4bb5a30
 
@@ -14,12 +21,9 @@ setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Fig
 ds_p<-read.csv("pelagic_spring_2022.csv", header = TRUE)
 ds_b<-read.csv('benthic_spring_2022.csv', header = TRUE)
 
-b_to_p = ds_b$strat.biomass / ds_p$strat.biomass
+b_to_p = ds_b$strat.biomass / ds_p$strat.biomass # Create the ratio
 
 ds_p$ratio = b_to_p
-# Your final time series is (hopefully) a dataframe with a column for the YEAR 
-# and a column for whatever the data variable is.  Here I give an example using 
-# Hudson river mean flow data where one column is YEAR and the other is flowrate
 
 # Creat a GAM - adjust k and remember to check model
 mod<- gam(ratio ~ s(YEAR, k=10), data = ds_p)

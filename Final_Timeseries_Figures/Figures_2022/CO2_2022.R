@@ -1,3 +1,9 @@
+## Figures for Atmospheric CO2
+
+## **Laura Gruenburg, lagruenburg@gmail.com**
+
+#   **LAST UPDATED: August 24, 2022**
+
 #####load required functions
 #  You will need to download the functions from here https://gist.github.com/gavinsimpson/e73f011fdaaab4bb5a30
 
@@ -42,8 +48,8 @@ lines(unlist(mod.dsig$decr)+intercept ~ year, data = pdata, col = "red", lwd = 3
 ggplot() + 
   geom_line(data = atm_co2, aes(x = year, y = ppm), color = 'grey53') +
   geom_point(data = atm_co2, aes(x = year, y = ppm), color = 'gray53') + 
-  #geom_smooth(data = atm_co2, aes(x = Date_year, y = ppm), method = lm, se = FALSE, color = 'black') + 
-  #geom_line(data=pdata, aes(x = year, y = p2_mod+intercept), se = FALSE, color = 'black', linetype = 'twodash', size = 1) + 
+  geom_smooth(data = atm_co2, aes(x = year, y = ppm), method = lm, se = FALSE, color = 'black') + 
+  geom_line(data=pdata, aes(x = year, y = p2_mod+intercept), se = FALSE, color = 'black', linetype = 'twodash', size = 1) + 
   geom_line(data = pdata, aes(y = unlist(mod.dsig$incr)+intercept, x = year), color = "blue", size = 1) + 
   geom_line(data = pdata, aes(y = unlist(mod.dsig$decr)+intercept, x = year), color = 'red', size = 1) + 
   theme_bw() +

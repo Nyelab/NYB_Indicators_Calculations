@@ -1,4 +1,10 @@
 #####load required functions
+## Figures for Recreational Effort
+
+## **Laura Gruenburg, lagruenburg@gmail.com**
+
+#   **LAST UPDATED: January 9, 2023**
+
 #  You will need to download the functions from here https://gist.github.com/gavinsimpson/e73f011fdaaab4bb5a30
 
 setwd("~/Desktop/NYB Indicators/Deriv")
@@ -19,10 +25,6 @@ P_R_Boat <- RE[RE$MODE == 'PRIVATE/RENTAL BOAT',]
 Sh <- RE[RE$MODE == 'SHORE',]
 Effort <- aggregate(RE['ESTRIPS'], by = RE['YEAR'], sum) # total number of angler trips
 
-# Your final time series is (hopefully) a dataframe with a column for the year 
-# and a column for whatever the data variable is.  Here I give an example using 
-# Hudson river mean flow data where one column is year and the other is flowrate
-
 # GAM for total effort
 # Creat a GAM - adjust k and remember to check model
 mod<- gam(ESTRIPS ~ s(YEAR, k=10), data = Effort)
@@ -31,7 +33,7 @@ gam.check(mod)
 
 pdata <- with(Effort, data.frame(YEAR = YEAR))
 p2_mod <- predict(mod, newdata = pdata,  type = "terms", se.fit = TRUE)
-intercept = 11505712   # look at p2_mod and extract the intercept
+intercept = 11720285   # look at p2_mod and extract the intercept
 pdata <- transform(pdata, p2_mod = p2_mod$fit[,1], se2 = p2_mod$se.fit[,1])
 
 #  Now that we have the model prediction, the next step is to calculate the first derivative
