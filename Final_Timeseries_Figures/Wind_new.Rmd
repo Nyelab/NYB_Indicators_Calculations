@@ -1,0 +1,547 @@
+---
+title: "Wind Indicator Experiments"
+author: "laura gruenburg"
+date: "8/14/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(lubridate)
+library(ggplot2)
+```
+
+## Load the wind data
+
+
+```{r cars}
+setwd("/Users/nyelab/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures")
+b_nyh = read.csv("Wind_buoy2_Aug_14_2023.csv")
+b_tt  = read.csv("Wind_buoy4_Aug_14_2023.csv")
+b_isl = read.csv("Wind_buoy5_Aug_14_2023.csv")
+
+```
+
+## Get months
+
+```{r}
+b_nyh$month <- format(as.Date(b_nyh$datetime), "%m")
+b_tt$month  <- format(as.Date(b_tt$datetime), "%m")
+b_isl$month <- format(as.Date(b_isl$datetime), "%m")
+```
+
+## Exclude some really early data from Texas Tower
+
+```{r}
+b_tt <- b_tt[b_tt$year > 1985, ]
+```
+
+## Experimenting with winds greater than a certain threshhold (90th percentile)
+## or pressure lower than a certain threshhold (10th percentile)
+
+```{r}
+pr_10percentile<- b_nyh %>% 
+  group_by(month) %>% 
+  summarise(quantile(air_pressure , probs=.1, na.rm = TRUE))
+
+colnames(pr_10percentile)[2] ="low_pr"
+Sub <- b_nyh[b_nyh$month == '01', ]
+low <- Sub[Sub$air_pressure <= pr_10percentile[pr_10percentile$month == '01', ]$low_pr, ]
+
+for (i in pr_10percentile$month){
+  if (i =='01') next
+  Sub <- b_nyh[b_nyh$month == i, ]
+  low_sub <- Sub[Sub$air_pressure <= pr_10percentile[pr_10percentile$month == '01', ]$low_pr, ]
+  low <- rbind(low,low_sub)
+}
+
+low$yr_month <- format(as.Date(low$datetime), "%m-%Y")
+
+```
+
+```{r}
+gust_90percentile<- b_nyh %>% 
+  group_by(month) %>% 
+  summarise(quantile(gust , probs=.9, na.rm = TRUE))
+
+colnames(gust_90percentile)[2] ="speed"
+Subg <- b_nyh[b_nyh$month == i, ]
+gusty <- Subg[Subg$gust >= gust_90percentile[gust_90percentile$month == '01', ]$speed, ]
+
+for (i in gust_90percentile$month){
+  if (i =='01') next
+  Subg <- b_nyh[b_nyh$month == i, ]
+  gust_sub <- Subg[Subg$gust >= gust_90percentile[gust_90percentile$month == '01', ]$speed, ]
+  gusty <- rbind(gusty,gust_sub)
+}
+
+gusty$yr_month <- format(as.Date(gusty$datetime), "%m-%Y")
+```
+
+## Including Plots
+
+```{r pressure, echo=FALSE}
+## Temperature by month
+ggplot(low, aes(x=year, y=air_temperature)) + 
+  geom_point(size=.05)+facet_wrap(~month)
+
+```
+
+```{r pressure, echo=FALSE}
+## Gusts in knots
+
+ggplot(gusty, aes(x=year, y=gust*(1/1852)*(3600/1))) + 
+  geom_point(size=.05)+facet_wrap(~month)
+
+```
+## Seasonal wind in knots - small craft advisory and tropical storm warning
+
+```{r}
+
+daily_wind_nyh <- b_nyh %>% group_by(year, yday) %>%
+  summarize(wind = mean(wind_spd)*(1/1852)*(3600/1),
+            dir = mean(wind_dir),
+            m = mean(as.numeric(month)))
+
+daily_wind_nyh$season = 'fall'
+daily_wind_nyh[daily_wind_nyh$m == 1,]$season = 'winter'
+daily_wind_nyh[daily_wind_nyh$m == 2,]$season = 'winter'
+daily_wind_nyh[daily_wind_nyh$m == 3,]$season = 'winter'
+
+daily_wind_nyh[daily_wind_nyh$m == 4,]$season = 'spring'
+daily_wind_nyh[daily_wind_nyh$m == 5,]$season = 'spring'
+daily_wind_nyh[daily_wind_nyh$m == 6,]$season = 'spring'
+
+daily_wind_nyh[daily_wind_nyh$m == 7,]$season = 'summer'
+daily_wind_nyh[daily_wind_nyh$m == 8,]$season = 'summer'
+daily_wind_nyh[daily_wind_nyh$m == 9,]$season = 'summer'
+
+daily_wind_nyh$category = 'No advisory'
+
+daily_wind_nyh[!is.na(daily_wind_nyh$wind) & daily_wind_nyh$wind >= 18 & daily_wind_nyh$wind <=33, ]$category ='small craft warning'
+
+daily_wind_nyh[!is.na(daily_wind_nyh$wind) & daily_wind_nyh$wind>= 34 & daily_wind_nyh$wind<=64, ]$category = 'tropical storm warning'
+
+### 
+
+daily_wind_isl <- b_isl %>% group_by(year, yday) %>%
+  summarize(wind = mean(wind_spd)*(1/1852)*(3600/1),
+            dir = mean(wind_dir),
+            m = mean(as.numeric(month)))
+
+daily_wind_isl$season = 'fall'
+daily_wind_isl[daily_wind_isl$m == 1,]$season = 'winter'
+daily_wind_isl[daily_wind_isl$m == 2,]$season = 'winter'
+daily_wind_isl[daily_wind_isl$m == 3,]$season = 'winter'
+
+daily_wind_isl[daily_wind_isl$m == 4,]$season = 'spring'
+daily_wind_isl[daily_wind_isl$m == 5,]$season = 'spring'
+daily_wind_isl[daily_wind_isl$m == 6,]$season = 'spring'
+
+daily_wind_isl[daily_wind_isl$m == 7,]$season = 'summer'
+daily_wind_isl[daily_wind_isl$m == 8,]$season = 'summer'
+daily_wind_isl[daily_wind_isl$m == 9,]$season = 'summer'
+
+daily_wind_isl$category = 'No advisory'
+
+daily_wind_isl[!is.na(daily_wind_isl$wind) & daily_wind_isl$wind >= 18 & daily_wind_isl$wind <=33, ]$category ='small craft warning'
+
+daily_wind_isl[!is.na(daily_wind_isl$wind) & daily_wind_isl$wind>= 34 & daily_wind_isl$wind<=64, ]$category = 'tropical storm warning'
+
+
+###
+
+daily_wind_tt <- b_tt %>% group_by(year, yday) %>%
+  summarize(wind = mean(wind_spd)*(1/1852)*(3600/1),
+            dir = mean(wind_dir),
+            m = mean(as.numeric(month)))
+
+daily_wind_tt$season = 'fall'
+daily_wind_tt[daily_wind_tt$m == 1,]$season = 'winter'
+daily_wind_tt[daily_wind_tt$m == 2,]$season = 'winter'
+daily_wind_tt[daily_wind_tt$m == 3,]$season = 'winter'
+
+daily_wind_tt[daily_wind_tt$m == 4,]$season = 'spring'
+daily_wind_tt[daily_wind_tt$m == 5,]$season = 'spring'
+daily_wind_tt[daily_wind_tt$m == 6,]$season = 'spring'
+
+daily_wind_tt[daily_wind_tt$m == 7,]$season = 'summer'
+daily_wind_tt[daily_wind_tt$m == 8,]$season = 'summer'
+daily_wind_tt[daily_wind_tt$m == 9,]$season = 'summer'
+
+
+daily_wind_tt$category = 'No advisory'
+
+daily_wind_tt[!is.na(daily_wind_tt$wind) & daily_wind_tt$wind >= 18 & daily_wind_tt$wind <=33, ]$category ='small craft warning'
+
+daily_wind_tt[!is.na(daily_wind_tt$wind) & daily_wind_tt$wind>= 34 & daily_wind_tt$wind<=64, ]$category = 'tropical storm warning'
+
+```
+
+``` {r}
+
+warnings_nyh<- daily_wind_nyh %>% group_by(year, season) %>% 
+  summarise(n_scw = sum(category == 'small craft warning'),
+            n_tsw = sum(category == 'tropical storm warning'))
+
+warnings_tt<- daily_wind_tt %>% group_by(year, season) %>% 
+  summarise(n_scw = sum(category == 'small craft warning'),
+            n_tsw = sum(category == 'tropical storm warning'))
+
+warnings_isl<- daily_wind_isl %>% group_by(year, season) %>% 
+  summarise(n_scw = sum(category == 'small craft warning'),
+            n_tsw = sum(category == 'tropical storm warning'))
+
+```
+
+## Plots of warnings
+
+```{r}
+warnings_nyh$buoy <- 'New York Harbor'
+warnings_tt$buoy <- 'Texas Tower'
+warnings_isl$buoy <- 'South of Islip'
+
+all_warnings <- rbind(warnings_nyh, warnings_tt, warnings_isl)
+
+
+variable_names <- list(
+  "winter" = "Winter" ,
+  "spring" = "Spring",
+  "summer" = "Summer",
+  "fall" = "Fall"
+)
+
+
+
+buoy_names <- c('New York Harbor', 'South of Islip', 'Texas Tower')
+
+
+variable_labeller2 <- function(variable,value){
+  if (variable=='season') {
+  return(variable_names[value])
+  } else {
+    return(buoy_names)
+  }
+}
+ggplot(all_warnings, aes(x=year, y=n_scw, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)
+
+ggplot(all_warnings, aes(x=year, y=n_tsw, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)
+
+```
+## Wind direction plots
+
+```{r}
+
+daily_wind_nyh$buoy <- 'New York Harbor'
+daily_wind_tt$buoy <- 'Texas Tower'
+daily_wind_isl$buoy <- 'South of Islip'
+
+all_wind <- rbind(daily_wind_nyh, daily_wind_tt, daily_wind_isl)
+all_wind$year_frac <- all_wind$year + (all_wind$yday/365)
+
+variable_names <- list(
+  "winter" = "Winter" ,
+  "spring" = "Spring",
+  "summer" = "Summer",
+  "fall" = "Fall"
+)
+
+
+
+buoy_names <- c('New York Harbor', 'South of Islip', 'Texas Tower')
+
+
+variable_labeller2 <- function(variable,value){
+  if (variable=='season') {
+  return(variable_names[value])
+  } else {
+    return(buoy_names)
+  }
+}
+
+ggplot(all_wind[all_wind$year == 2009, ], aes(x=yday, y=dir, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)
+
+ggwindrose(all_wind, wind,dir)
+```
+
+## Windrose plotting function
+
+```{r}
+
+# WindRose.R
+require(ggplot2)
+require(RColorBrewer)
+
+plot.windrose <- function(data,
+                      spd,
+                      dir,
+                      spdres = 2,
+                      dirres = 30,
+                      spdmin = 2,
+                      spdmax = 20,
+                      spdseq = NULL,
+                      palette = "YlGnBu",
+                      countmax = NA,
+                      debug = 0){
+
+
+# Look to see what data was passed in to the function
+  if (is.numeric(spd) & is.numeric(dir)){
+    # assume that we've been given vectors of the speed and direction vectors
+    data <- data.frame(spd = spd,
+                       dir = dir)
+    spd = "spd"
+    dir = "dir"
+  } else if (exists("data")){
+    # Assume that we've been given a data frame, and the name of the speed 
+    # and direction columns. This is the format we want for later use.    
+  }  
+
+  # Tidy up input data ----
+  n.in <- NROW(data)
+  dnu <- (is.na(data[[spd]]) | is.na(data[[dir]]))
+  data[[spd]][dnu] <- NA
+  data[[dir]][dnu] <- NA
+
+  # figure out the wind speed bins ----
+  if (missing(spdseq)){
+    spdseq <- seq(spdmin,spdmax,spdres)
+  } else {
+    if (debug >0){
+      cat("Using custom speed bins \n")
+    }
+  }
+  # get some information about the number of bins, etc.
+  n.spd.seq <- length(spdseq)
+  n.colors.in.range <- n.spd.seq - 1
+
+  # create the color map
+  spd.colors <- colorRampPalette(brewer.pal(min(max(3,
+                                                    n.colors.in.range),
+                                                min(9,
+                                                    n.colors.in.range)),                                               
+                                            palette))(n.colors.in.range)
+
+  if (max(data[[spd]],na.rm = TRUE) > spdmax){    
+    spd.breaks <- c(spdseq,
+                    max(data[[spd]],na.rm = TRUE))
+    spd.labels <- c(paste(c(spdseq[1:n.spd.seq-1]),
+                          '-',
+                          c(spdseq[2:n.spd.seq])),
+                    paste(spdmax,
+                          "-",
+                          max(data[[spd]],na.rm = TRUE)))
+    spd.colors <- c(spd.colors, "grey50")
+  } else{
+    spd.breaks <- spdseq
+    spd.labels <- paste(c(spdseq[1:n.spd.seq-1]),
+                        '-',
+                        c(spdseq[2:n.spd.seq]))    
+  }
+  data$spd.binned <- cut(x = data[[spd]],
+                         breaks = spd.breaks,
+                         labels = spd.labels,
+                         ordered_result = TRUE)
+  # clean up the data
+  data. <- na.omit(data)
+
+  # figure out the wind direction bins
+  dir.breaks <- c(-dirres/2,
+                  seq(dirres/2, 360-dirres/2, by = dirres),
+                  360+dirres/2)  
+  dir.labels <- c(paste(360-dirres/2,"-",dirres/2),
+                  paste(seq(dirres/2, 360-3*dirres/2, by = dirres),
+                        "-",
+                        seq(3*dirres/2, 360-dirres/2, by = dirres)),
+                  paste(360-dirres/2,"-",dirres/2))
+  # assign each wind direction to a bin
+  dir.binned <- cut(data[[dir]],
+                    breaks = dir.breaks,
+                    ordered_result = TRUE)
+  levels(dir.binned) <- dir.labels
+  data$dir.binned <- dir.binned
+
+  # Run debug if required ----
+  if (debug>0){    
+    cat(dir.breaks,"\n")
+    cat(dir.labels,"\n")
+    cat(levels(dir.binned),"\n")       
+  }  
+
+  # deal with change in ordering introduced somewhere around version 2.2
+  if(packageVersion("ggplot2") > "2.2"){    
+    cat("Hadley broke my code\n")
+    data$spd.binned = with(data, factor(spd.binned, levels = rev(levels(spd.binned))))
+    spd.colors = rev(spd.colors)
+  }
+
+  # create the plot ----
+  p.windrose <- ggplot(data = data,
+                       aes(x = dir.binned,
+                           fill = spd.binned)) +
+    geom_bar() + 
+    scale_x_discrete(drop = FALSE,
+                     labels = waiver()) +
+    coord_polar(start = -((dirres/2)/360) * 2*pi) +
+    scale_fill_manual(name = "Wind Speed (m/s)", 
+                      values = spd.colors,
+                      drop = FALSE) +
+    theme(axis.title.x = element_blank())
+
+  # adjust axes if required
+  if (!is.na(countmax)){
+    p.windrose <- p.windrose +
+      ylim(c(0,countmax))
+  }
+
+  # print the plot
+  print(p.windrose)  
+
+  # return the handle to the wind rose
+  return(p.windrose)
+}
+
+```
+
+## Windrose plots 
+```{r}
+
+all_wind <- all_wind[!is.na(all_wind$dir),  ]
+plot.windrose(spd = all_wind$wind,
+                   dir = all_wind$dir,
+              dirres = 10)
+
+p.wr2 <- plot.windrose(data = all_wind,
+              spd = "wind",
+              dir = "dir",
+              dirres = 10)
+# now generate the faceting
+p.wr3 <- p.wr2 + facet_wrap(~buoy,
+                            ncol = 3)
+
+p.wr4 <- p.wr2 + facet_grid(rows=vars(season), cols = vars(buoy))+ theme(axis.text.x = element_blank(),
+          axis.title.x = element_blank())
+
+
+buoy_names <- c('New York Harbor', 'South of Islip', 'Texas Tower')
+
+
+variable_labeller2 <- function(variable,value){
+  if (variable=='season') {
+  return(variable_names[value])
+  } else {
+    return(buoy_names)
+  }
+}
+
+plot.windrose(data = all_wind, spd = "wind", dir = "dir")+
+  facet_grid(season~buoy, space="free_x",  labeller= variable_labeller2)
+```
+```{r}
+plot.windrose(data = all_wind[all_wind$buoy == "New York Harbor", ], spd = "wind", dir = "dir", dirres = 10)+
+  facet_grid(rows=vars(year), cols = vars(season))+ theme(axis.text.x = element_blank(),
+          axis.title.x = element_blank())
+
+```
+
+
+
+```{r}
+#north = 337.5 = 22.5
+#northeast = 22.5 - 67.5
+#east = 67.5 - 112.5
+#southeast = 112.5 - 157.5
+#south =  157.5 - 202.5
+#southwest = 202.5 - 247.5
+#west = 247.5 - 292.5
+#northwest = 292.5 - 337.5
+
+all_wind$dir_group = 'NaN'
+
+all_wind[all_wind$dir >= 337.5, ]$dir_group <- 'north'
+all_wind[all_wind$dir < 22.5, ]$dir_group <- 'north'
+
+all_wind[all_wind$dir >= 22.5 & all_wind$dir <67.5, ]$dir_group <- 'northeast'
+all_wind[all_wind$dir >= 67.5 & all_wind$dir <112.5, ]$dir_group <- 'east'
+all_wind[all_wind$dir >= 112.5 & all_wind$dir <157.5, ]$dir_group <- 'southeast'
+all_wind[all_wind$dir >= 157.5 & all_wind$dir <202.5, ]$dir_group <- 'south'
+all_wind[all_wind$dir >= 202.5 & all_wind$dir <247.5, ]$dir_group <- 'southwest'
+all_wind[all_wind$dir >= 247.5 & all_wind$dir <292.5, ]$dir_group <- 'west'
+all_wind[all_wind$dir >= 292.5 & all_wind$dir <337.5, ]$dir_group <- 'northwest'
+
+
+direction_wind <- all_wind %>% group_by(year, season, buoy) %>%
+  summarize(n_days  = sum(dir_group == 'north'),
+            ne_days  = sum(dir_group == 'northeast'),
+            e_days  = sum(dir_group == 'east'),
+            se_days  = sum(dir_group == 'southeast'),
+            s_days  = sum(dir_group == 'south'),
+            sw_days  = sum(dir_group == 'southwest'),
+            w_days  = sum(dir_group == 'west'),
+            nw_days  = sum(dir_group == 'northwest'))
+
+strengthdirection_wind <- all_wind %>% group_by(year, season, buoy, dir_group) %>%
+  summarize(n_strength  = mean(wind, na.rm = TRUE),
+            ne_strength  = mean(wind, na.rm = TRUE),
+            e_strength  = mean(wind, na.rm = TRUE),
+            se_strength  = mean(wind, na.rm = TRUE),
+            s_strength  = mean(wind, na.rm = TRUE),
+            sw_strength  = mean(wind, na.rm = TRUE),
+            w_strength  = mean(wind, na.rm = TRUE),
+            nw_strength  = mean(wind, na.rm = TRUE))
+
+
+buoy_names <- c('New York Harbor', 'South of Islip', 'Texas Tower')
+
+
+variable_labeller2 <- function(variable,value){
+  if (variable=='season') {
+  return(variable_names[value])
+  } else {
+    return(buoy_names)
+  }
+}
+
+ggplot(direction_wind, aes(x=year, y=s_days, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)+ ggtitle('Southerly Winds')
+
+ggplot(direction_wind, aes(x=year, y=sw_days, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)+ ggtitle('Southwesterly Winds')
+
+ggplot(direction_wind, aes(x=year, y=nw_days, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)+ ggtitle('Northwesterly Winds')
+
+ggplot(direction_wind, aes(x=year, y=w_days, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)+ ggtitle('Westerly Winds')
+
+
+ggplot(strengthdirection_wind[strengthdirection_wind$dir_group == 'south', ],
+       aes(x=year, y=n_strength, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)+ ggtitle('Southerly Winds')
+
+ggplot(strengthdirection_wind[strengthdirection_wind$dir_group == 'southwest', ],
+       aes(x=year, y=n_strength, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)+ ggtitle('Southwesterly Winds')
+
+ggplot(strengthdirection_wind[strengthdirection_wind$dir_group == 'northwest', ],
+       aes(x=year, y=n_strength, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)+ ggtitle('Northwesterly Winds')
+
+
+ggplot(strengthdirection_wind[strengthdirection_wind$dir_group == 'west', ],
+       aes(x=year, y=n_strength, color=buoy))+
+  geom_line(stat='identity')+
+  facet_grid(season~buoy, scales="free", space="free_x",  labeller= variable_labeller2)+ ggtitle('Westerly Winds')
