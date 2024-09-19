@@ -2,7 +2,7 @@
 
 ## **Laura Gruenburg, lagruenburg@gmail.com**
 
-#   **LAST UPDATED: September 29, 2029**
+#   **LAST UPDATED: September 29, 2023**
 
 ###load required functions
 #  You will need to download the functions from here https://gist.github.com/gavinsimpson/e73f011fdaaab4bb5a30
@@ -21,6 +21,14 @@ ds_n<-read.csv("north_spring_2023.csv", header = TRUE)
 ds_s<-read.csv('south_spring_2023.csv', header = TRUE)
 ds_n$ratio = ds_n$strat.biomass / ds_s$strat.biomass
 #n_to_s = ds_n$strat.biomass / ds_s$strat.biomass
+
+#calculate the 30th a and 70th percentiles for the short term column of the indicators report
+qds_n = quantile(ds_n$ratio, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_ds_n5 = mean(ds_n$ratio[ds_n$YEAR >= 2019])
+# what quintile the data is in
+mn_ds_n5 >qds_n
 
 # Creat a GAM - adjust k and remember to check model
 mod<- gam(ratio ~ s(YEAR, k=10), data =ds_n)
@@ -68,9 +76,14 @@ ds2_n<-read.csv("north_fall_2023.csv", header = TRUE)
 ds2_s<-read.csv("south_fall_2023.csv", header = TRUE)
 ds2_n$ratio = ds2_n$strat.biomass / ds2_s$strat.biomass
 
-# Your final time series is (hopefully) a dataframe with a column for the YEAR 
-# and a column for whatever the data variable is.  Here I give an example using 
-# Hudson river mean flow data where one column is YEAR and the other is flowrate
+#calculate the 30th a and 70th percentiles for the short term column of the indicators report
+qds2_n = quantile(ds2_n$ratio, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_ds2_n5 = mean(ds2_n$ratio[ds2_n$YEAR >= 2019])
+# what quintile the data is in
+mn_ds2_n5 >qds2_n
+
 
 # Creat a GAM - adjust k and remember to check model
 mod2<- gam(ratio ~ s(YEAR, k=10), data = ds2_n)

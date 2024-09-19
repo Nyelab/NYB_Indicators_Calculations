@@ -16,7 +16,17 @@ library(ggpubr)
 
 #######Load the datasets
 setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2023")
-ds<-read.csv("jonah_spring_2023.csv", header = TRUE)
+ds_1<-read.csv("jonah_spring_2023.csv", header = TRUE)
+ds<- ds_1[ds_1$YEAR > 1972, ]
+
+#calculate the 30th a and 70th percentiles for the short term column of the indicators report
+qds = quantile(ds$strat.biomass, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_ds5 = mean(ds$strat.biomass[ds$YEAR >= 2019])
+# what quintile the data is in
+mn_ds5 >qds
+
 
 # Creat a GAM - adjust k and remember to check model
 mod<- gam(strat.biomass ~ s(YEAR, k=10), data = ds)
@@ -25,13 +35,13 @@ gam.check(mod)
 
 pdata <- with(ds, data.frame(YEAR = YEAR))
 p2_mod <- predict(mod, newdata = pdata,  type = "terms", se.fit = TRUE)
-intercept = 0.07550514   # look at p2_mod and extract the intercept
+intercept = 0.07708367   # look at p2_mod and extract the intercept
 pdata <- transform(pdata, p2_mod = p2_mod$fit[,1], se2 = p2_mod$se.fit[,1])
 
 #  Now that we have the model prediction, the next step is to calculate the first derivative
 #  Then determine which increases and decreases are significant
 Term = "YEAR"
-mod.d <- Deriv(mod, n=46) # n is the number of YEARs
+mod.d <- Deriv(mod, n=45) # n is the number of YEARs
 mod.dci <- confint(mod.d, term = Term)
 mod.dsig <- signifD(pdata$p2_mod, d = mod.d[[Term]]$deriv,
                     +                    mod.dci[[Term]]$upper, mod.dci[[Term]]$lower)
@@ -60,12 +70,16 @@ p1 = ggplot() +
   theme(plot.title=element_text(size = 16,face = 'bold',hjust = 0.5), axis.title=element_text(size = 14, face = 'bold'), axis.text= element_text(color = 'black', size = 12))
 
 
-ds2<-read.csv("jonah_fall_2023.csv", header = TRUE)
+ds_2<-read.csv("jonah_fall_2023.csv", header = TRUE)
+ds2 <- ds_2[ds_2$YEAR > 1972, ]
 
+#calculate the 30th a and 70th percentiles for the short term column of the indicators report
+qds2 = quantile(ds2$strat.biomass, probs = c(.30, .70))
 
-# Your final time series is (hopefully) a dataframe with a column for the YEAR 
-# and a column for whatever the data variable is.  Here I give an example using 
-# Hudson river mean flow data where one column is YEAR and the other is flowrate
+# find the last 5 years mean
+mn_ds25 = mean(ds2$strat.biomass[ds2$YEAR >= 2019])
+# what quintile the data is in
+mn_ds25 >qds2
 
 # Creat a GAM - adjust k and remember to check model
 mod2<- gam(strat.biomass ~ s(YEAR, k=10), data = ds2)
@@ -74,13 +88,13 @@ gam.check(mod2)
 
 pdata2 <- with(ds2, data.frame(YEAR = YEAR))
 p2_mod2 <- predict(mod2, newdata = pdata2,  type = "terms", se.fit = TRUE)
-intercept2 = 0.1148632    # look at p2_mod and extract the intercept
+intercept2 = 0.1092346    # look at p2_mod and extract the intercept
 pdata2 <- transform(pdata2, p2_mod2 = p2_mod2$fit[,1], se2 = p2_mod2$se.fit[,1])
 
 #  Now that we have the model prediction, the next step is to calculate the first derivative
 #  Then determine which increases and decreases are significant
 Term = "YEAR"
-mod2.d <- Deriv(mod2, n=50) # n is the number of YEARs
+mod2.d <- Deriv(mod2, n=48) # n is the number of YEARs
 mod2.dci <- confint(mod2.d, term = Term)
 mod2.dsig <- signifD(pdata2$p2_mod2, d = mod2.d[[Term]]$deriv,
                      +                    mod2.dci[[Term]]$upper, mod2.dci[[Term]]$lower)
@@ -99,8 +113,8 @@ summary(linearmod2)
 p2 = ggplot() + 
   geom_line(data = ds2, aes(x = YEAR, y = strat.biomass), color = 'grey') +
   geom_point(data = ds2, aes(x = YEAR, y = strat.biomass), color = 'gray') + 
-  geom_point(data = ds2[50, ], aes(x = YEAR, y = strat.biomass), shape = 17, size = 3) + 
-  #geom_smooth(data = ds2, aes(x = YEAR, y = strat.biomass), method = lm, se = FALSE, color = 'black') + 
+  geom_point(data = ds2[48, ], aes(x = YEAR, y = strat.biomass), shape = 17, size = 3) + 
+  geom_smooth(data = ds2, aes(x = YEAR, y = strat.biomass), method = lm, se = FALSE, color = 'black') + 
   geom_line(data=pdata2, aes(x = YEAR, y = p2_mod2+intercept2), se = FALSE, color = 'black', linetype = 'twodash', size = 1) + 
   geom_line(data = pdata2, aes(y = unlist(mod2.dsig$incr)+intercept2, x = YEAR), color = "blue", size = 1) + 
   geom_line(data = pdata2, aes(y = unlist(mod2.dsig$decr)+intercept2, x = YEAR), color = 'red', size = 1) + 
@@ -111,7 +125,7 @@ p2 = ggplot() +
 
 ggarrange(p1, p2, 
           labels = c("Spring", " Fall"),
-          label.x = c(.05,.05),
+          label.x = c(.035,.035),
           label.y = c(0.88,0.88),
           font.label = (face = 'Italic'),
           ncol = 1, nrow = 2)

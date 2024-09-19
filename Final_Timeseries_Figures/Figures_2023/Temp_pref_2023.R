@@ -18,6 +18,15 @@ library(ggpubr)
 setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2023")
 ds<-read.csv("avgtemp_spring_2023.csv", header = TRUE)
 
+
+#calculate the 30th a and 70th percentiles for the short term column of the indicators report
+qds = quantile(ds$wt_mean_temp, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_ds5 = mean(ds$wt_mean_temp[ds$YEAR >= 2019])
+# what quintile the data is in
+mn_ds5 >qds
+
 # Creat a GAM - adjust k and remember to check model
 mod<- gam(wt_mean_temp ~ s(YEAR, k=10), data = ds)
 summary(mod) #check out model
@@ -64,9 +73,13 @@ p1 = ggplot() +
 ds2<-read.csv("avgtemp_fall_2023.csv", header = TRUE)
 
 
-# Your final time series is (hopefully) a dataframe with a column for the YEAR 
-# and a column for whatever the data variable is.  Here I give an example using 
-# Hudson river mean flow data where one column is YEAR and the other is flowrate
+#calculate the 30th a and 70th percentiles for the short term column of the indicators report
+qds2 = quantile(ds2$wt_mean_temp, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_ds25 = mean(ds2$wt_mean_temp[ds2$YEAR >= 2019])
+# what quintile the data is in
+mn_ds25 >qds2
 
 # Creat a GAM - adjust k and remember to check model
 mod2<- gam(wt_mean_temp ~ s(YEAR, k=10), data = ds2)

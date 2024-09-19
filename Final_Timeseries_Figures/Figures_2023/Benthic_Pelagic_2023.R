@@ -21,6 +21,15 @@ b_to_p = ds_b$strat.biomass / ds_p$strat.biomass # Create the ratio
 
 ds_p$ratio = b_to_p
 
+#calculate the 30th a and 70th percentiles for the short term column of the indicators report
+qds_p = quantile(ds_p$ratio, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_ds_p5 = mean(ds_p$ratio[ds_p$YEAR >= 2019])
+# what quintile the data is in
+mn_ds_p5 >qds_p
+
+
 # Creat a GAM - adjust k and remember to check model
 mod<- gam(ratio ~ s(YEAR, k=10), data = ds_p)
 summary(mod) #check out model
@@ -67,9 +76,13 @@ ds2_p<-read.csv("pelagic_fall_2023.csv", header = TRUE)
 ds2_b<-read.csv("benthic_fall_2023.csv", header = TRUE)
 ds2_p$ratio = ds2_b$strat.biomass / ds2_p$strat.biomass
 
-# Your final time series is (hopefully) a dataframe with a column for the YEAR 
-# and a column for whatever the data variable is.  Here I give an example using 
-# Hudson river mean flow data where one column is YEAR and the other is flowrate
+#calculate the 30th a and 70th percentiles for the short term column of the indicators report
+qds2_p = quantile(ds2_p$ratio, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_ds2_p5 = mean(ds2_p$ratio[ds2_p$YEAR >= 2019])
+# what quintile the data is in
+mn_ds2_p5 >qds2_p
 
 # Creat a GAM - adjust k and remember to check model
 mod2<- gam(ratio ~ s(YEAR, k=10), data = ds2_p)

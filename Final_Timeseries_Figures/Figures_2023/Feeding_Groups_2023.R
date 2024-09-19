@@ -19,6 +19,14 @@ setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Fig
 Benthos<-read.csv("benthos_spring_2023.csv", header = TRUE)
 Benthos
 
+#calculate the 30th a and 70th percentiles for the short term column of the indicators report
+qBenthos = quantile(Benthos$strat.biomass, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_Benthos5 = mean(Benthos$strat.biomass[Benthos$YEAR >= 2019])
+# what quintile the data is in
+mn_Benthos5 >qBenthos
+
 # Creat a GAM - adjust k and remember to check model
 mod_cr<- gam(strat.biomass ~ s(YEAR, k=10), data = Benthos)
 summary(mod_cr) #check out model
@@ -63,6 +71,13 @@ Bt <- ggplot() +
 ### Benthos Fall
 Benthos_f<-read.csv("benthos_fall_2023.csv", header = TRUE)
 Benthos_f
+
+qBenthos_f = quantile(Benthos_f$strat.biomass, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_Benthos_f5 = mean(Benthos_f$strat.biomass[Benthos_f$YEAR >= 2019])
+# what quintile the data is in
+mn_Benthos_f5 >qBenthos_f
 
 # Creat a GAM - adjust k and remember to check model
 mod_bf<- gam(strat.biomass ~ s(YEAR, k=10), data = Benthos_f)
@@ -123,6 +138,13 @@ plot_Benthos <- annotate_figure(plot_Bt, top = text_grob("Benthos",
 Benthivore<-read.csv("benthivore_spring_2023.csv", header = TRUE)
 Benthivore
 
+qBenthivore = quantile(Benthivore$strat.biomass, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_Benthivore5 = mean(Benthivore$strat.biomass[Benthivore$YEAR >= 2019])
+# what quintile the data is in
+mn_Benthivore5 >qBenthivore
+
 # Creat a GAM - adjust k and remember to check model
 mod_bvs<- gam(strat.biomass ~ s(YEAR, k=10), data = Benthivore)
 summary(mod_bvs) #check out model
@@ -167,6 +189,13 @@ Bvs <- ggplot() +
 ### Benthivore Fall
 Benthivore_f<-read.csv("Benthivore_fall_2023.csv", header = TRUE)
 Benthivore_f
+
+qBenthivore_f = quantile(Benthivore_f$strat.biomass, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_Benthivore_f5 = mean(Benthivore_f$strat.biomass[Benthivore_f$YEAR >= 2019])
+# what quintile the data is in
+mn_Benthivore_f5 >qBenthivore_f
 
 # Creat a GAM - adjust k and remember to check model
 mod_bvf<- gam(strat.biomass ~ s(YEAR, k=10), data = Benthivore_f)
@@ -225,6 +254,14 @@ plot_Benthivore <- annotate_figure(plot_Bv, top = text_grob("Benthivore",
 Planktivore<-read.csv("Planktivore_spring_2023.csv", header = TRUE)
 Planktivore
 
+qPlanktivore = quantile(Planktivore$strat.biomass, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_Planktivore5 = mean(Planktivore$strat.biomass[Planktivore$YEAR >= 2019])
+# what quintile the data is in
+mn_Planktivore5 >qPlanktivore
+
+
 # Creat a GAM - adjust k and remember to check model
 mod_pvs<- gam(strat.biomass ~ s(YEAR, k=10), data = Planktivore)
 summary(mod_pvs) #check out model
@@ -269,6 +306,13 @@ Pvs <- ggplot() +
 ### Planktivore Fall
 Planktivore_f<-read.csv("Planktivore_fall_2023.csv", header = TRUE)
 Planktivore_f
+
+qPlanktivore_f = quantile(Planktivore_f$strat.biomass, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_Planktivore_f5 = mean(Planktivore_f$strat.biomass[Planktivore_f$YEAR >= 2019])
+# what quintile the data is in
+mn_Planktivore_f5 >qPlanktivore_f
 
 # Creat a GAM - adjust k and remember to check model
 mod_pvf<- gam(strat.biomass ~ s(YEAR, k=10), data = Planktivore_f)
@@ -327,6 +371,14 @@ plot_Planktivore <- annotate_figure(plot_Pv, top = text_grob("Planktivore",
 Piscivore<-read.csv("Piscivore_spring_2023.csv", header = TRUE)
 Piscivore
 
+qPiscivore = quantile(Piscivore$strat.biomass, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_Piscivore5 = mean(Piscivore$strat.biomass[Piscivore$YEAR >= 2019])
+# what quintile the data is in
+mn_Piscivore5 >qPiscivore
+
+
 # Creat a GAM - adjust k and remember to check model
 mod_pcs<- gam(strat.biomass ~ s(YEAR, k=10), data = Piscivore)
 summary(mod_pcs) #check out model
@@ -371,6 +423,14 @@ Pcs <- ggplot() +
 ### Piscivore Fall
 Piscivore_f<-read.csv("Piscivore_fall_2023.csv", header = TRUE)
 Piscivore_f
+
+
+qPiscivore_f = quantile(Piscivore_f$strat.biomass, probs = c(.30, .70))
+
+# find the last 5 years mean
+mn_Piscivore_f5 = mean(Piscivore_f$strat.biomass[Piscivore_f$YEAR >= 2019])
+# what quintile the data is in
+mn_Piscivore_f5 >qPiscivore_f
 
 # Creat a GAM - adjust k and remember to check model
 mod_pcf<- gam(strat.biomass ~ s(YEAR, k=10), data = Piscivore_f)
