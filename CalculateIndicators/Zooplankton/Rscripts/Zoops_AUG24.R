@@ -245,6 +245,9 @@ points(finalTS[finalTS$Variable %in% varz[i] == TRUE & finalTS$Loc == "NYB","Yea
 setwd("~/Desktop/NYB Indicators/Final_timeseries")
 write.csv(finalTS, file = "Zoops.csv")
 
-
+write.csv(GOM, file = "GOM.csv")
+write.csv(SS, file = "SS.csv")
+write.csv(MAB, file = "MAB.csv")
+write.csv(GB, file = "GB.csv")
 
 

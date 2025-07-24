@@ -113,9 +113,9 @@ OISST_prep <- function(filename){
 
 
 
-setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
-d1<-OISST_prep("a59ac185b8e5d9a34813fee58c0a9fdf.nc")
-#d1$lon<-(360-d1$lon)*-1#fix lat long, dont need to do this anymore with new ERDDAP version
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CV/OISST_v2.1")
+d1<-OISST_prep("OISST_daily_v2.1_1982_1985.nc")
+d1$lon<-(360-d1$lon)*-1#fix lat long, dont need to do this anymore with new ERDDAP version
 d1$lat_lon<-paste(d1$lat, d1$lon, sep = "_")#this is just a unique id for each grid point
 d1sub<-d1[!duplicated(d1$lat_lon),]#get rid of all duplicate dmeasuremnts at a point
 
@@ -176,3 +176,39 @@ setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
 write.csv(ddd, "L1_SST_data_ProcessedAUG30_2021.csv", row.names = FALSE)#takes awhile
 ```
 
+
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CV/OISST_v2.1")
+d1<-OISST_prep("OISST_daily_v2.1_1982_1985.nc")
+d2<-OISST_prep("OISST_daily_v2.1_1986_1990.nc")
+d3<-OISST_prep("OISST_daily_v2.1_1991_1999.nc")
+d4<-OISST_prep("OISST_daily_v2.1_2000_2008.nc")
+d5<-OISST_prep("OISST_daily_v2.1_2009_2013.nc")
+d6<-OISST_prep("OISST_daily_v2.1_2014_2019.nc")
+#d1-d6 are the original 6 datasets, we can add new data below as it becomes available.
+d7<-OISST_prep("OISST_daily_v2.1_2020_2022jul.nc")
+
+ddd<-rbind(d1,d2,d3,d4,d5,d6,d7)
+rm(d1,d2,d3,d4,d5,d6,d7)
+nrow(ddd)
+####
+ddd$lon<-(360-ddd$lon)*-1#convert to correct lat long
+ddd$lat_lon<-paste(ddd$lat, ddd$lon, sep = "_") #takes awhile, makes a unique lat-long identfier
+###remove poitns not within EPU AND not in NYB
+ddd<-ddd[ddd$lat_lon %in% tlabs[tlabs$EPU == "Not in NES" & tlabs$NYB == "Not in NYB", "lat_lon"] == FALSE,]#get rid of points not in an EPU or in the NYB
+nrow(ddd)
+ddd$year<-year(ddd$t)#add year
+ddd$month<-month(ddd$t)#add month numeric
+ddd$day<-day(ddd$t)#add day of month
+ddd$yday<-yday(ddd$t)#add yearday
+
+###ddd is the final dataset to work with for summary stats calculations
+ddd<-merge(ddd,tlabs, by = "lat_lon")
+
+###SAVE THIS DATA FRAME
+### Then you dont need torepeat above steps next time you want to work on this
+
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
+#write.csv(ddd, "L1_SST_data_ProcessedAUG30_2021.csv", row.names = FALSE)#takes awhile
+write.csv(ddd, "L1_SST_data_ProcessedNOV14_2022.csv", row.names = FALSE)
+```

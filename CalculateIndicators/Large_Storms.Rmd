@@ -1,0 +1,57 @@
+---
+title: "Large Storms"
+author: "laura gruenburg"
+date: "10/27/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Number of Large Storms Indicator
+
+data from the University of Manitoba
+
+https://canwin-datahub.ad.umanitoba.ca/data/dataset/nsidc-extratropical-cyclone-tracking-cnect/resource/baad0eac-5990-4de7-b23b-f5b5f22aafed University of Manitoba Northern Hemisphere Cyclone Dataset 1950-2022 (updated yearly)
+
+```{r}
+setwd('/Users/nyelab/Desktop/NYB Indicators/')
+cyclones1 <- read.csv('Cyclones/2022/01/System13_2R_202201_673.csv', header = TRUE)
+cyclones1 <- cyclones1[1, ]
+
+mos <- c('01','02','03','04','05','06','07','08','09','10','11','12')
+
+for (i in 1950:2022){
+  for (j in mos){
+    setwd(paste0('/Users/nyelab/Desktop/NYB Indicators/Cyclones/',as.character(i), '/',j,'/'))
+    my_files <- list.files(pattern = '\\.csv$')
+    cyclones <- lapply(my_files, read.csv)
+    all_cyclones<-do.call(rbind, cyclones)
+    step1 <- all_cyclones[all_cyclones$lon >= -77, ]
+    step2 <- step1[step1$lon <= -67, ]
+    step3 <- step2[step2$lat <= 43, ]
+    cyclones_nyb <- step3[step3$lat >= 37, ]
+    cyclones1 <- rbind(cyclones1, cyclones_nyb)
+  }
+}
+row.names(cyclones1) <- NULL
+cyclones <- cyclones1[2:11795,]
+row.names(cyclones) <- NULL
+```
+```{r}
+cyclones$strength = 0
+for (i in 1:11794){
+  if (is.na(cyclones$DsqP[i]) == FALSE){
+    if (cyclones$DsqP[i] < 15){
+        cyclones$strength[i] = 1}
+    if (cyclones$DsqP[i] >= 15){
+        cyclones$strength[i] = 2}
+  }
+}
+
+cyclones_NYB <- cyclones[cyclones$strength > 0, ]
+
+setwd('/Users/nyelab/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2023/')
+write.csv(cyclones_NYB, 'Cyclones_2023.csv')
+```

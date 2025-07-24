@@ -27,7 +27,7 @@ ddd$date<-as.Date(ddd$date,tryFormats = c("%Y%m%d"))
 ddd$date<-as.Date(ddd$date)
 ddd$data_source<-"WOD"
 
-sea<-read.csv("CTD_seawolf_NOV23_2021.csv")
+sea<-read.csv("CTD_seawolf_DEC12_2022.csv")
 sea$date<-as.Date(sea$date)
 sea$data_source<-"SEAWOLF"
 
@@ -74,7 +74,7 @@ ntab
 remove_these<-names(ntab[ntab < minN])#remove below minN
 ###subdat1 removes data for years with less than minNcasts and is used in analysis
 subdat1<-NYB[NYB$year_fac %in% remove_these == FALSE,]
-nrow(subdat1)#this is how many casts are used -> 38186
+nrow(subdat1)#this is how many casts are used -> 38235
 
 ######Display Data Density + TRIM
 table(subdat1$year)#casts per year for data used in analysis
@@ -274,7 +274,7 @@ fff<-rbind(MAB,fNYB, NES)
 
 #saving just for NYB indicator time series
 setwd("~/Desktop/NYB Indicators/Final_timeseries")
-write.csv(fNYB, "BT_insitu_Nov_23_2021.csv")
+write.csv(fNYB, "BT_insitu_Dec_12_2022.csv")
 
 
 ####compare to NOAA version#####

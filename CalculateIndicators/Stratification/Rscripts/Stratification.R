@@ -19,7 +19,7 @@ ddd<-read.csv("WOD_CTD_format_D50_June24_2020.csv", header = TRUE)
 ddd$date<-as.Date(ddd$date)
 ddd$data_source<-"WOD"
 
-sea<-read.csv("CTD_seawolf_AUG6.csv")
+sea<-read.csv("CTD_seawolf_Dec12_2022.csv")
 sea$date<-as.Date(sea$date)
 sea$data_source<-"SEAWOLF"
 
@@ -66,13 +66,13 @@ ntab
 remove_these<-names(ntab[ntab < minN])#remove below minN
 ###subdat1 removes data for years with less than minNcasts and is used in analysis
 subdat1<-NYB[NYB$year_fac %in% remove_these == FALSE,]
-nrow(subdat1)#this is how many casts are used
+nrow(subdat1)#this is how many casts are used 8383
 
 ######Display Data Density + TRIM
 table(subdat1$year)#casts per year for data used in analysis
 table(NYB$year)#cast per year for whole NYB
 #plot of each year with number of casts per month
-par(mfrow=c(5,5))
+par(mfrow=c(2,2))
 yearz<-unique(NYB$year)
 for(i in 1:length(yearz)){
   #i = 1
@@ -225,4 +225,4 @@ fff<-rbind(MAB,fNYB, NES)
 
 ###write to csv
 setwd("~/Desktop/NYB Indicators/Final_timeseries")
-write.csv(fff, "Strat_insitu_AUG_10_2020.csv")
+write.csv(fNYB, "Strat_insitu_DEC_12_2022.csv")

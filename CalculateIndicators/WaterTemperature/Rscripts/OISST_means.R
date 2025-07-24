@@ -1,5 +1,10 @@
+# Last Updated by L. Gruenburg on May 21, 2024 lagruenburg@gmail.com
+
+# These L1 datasets are in the NYOS megafolder, they are too large for github
+
+#This is where they live on my local computer.  You may need to change this if you put them elsewhere
 setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
-ddd<-read.csv("L1_SST_data_ProcessedAUG30_2021.csv", header = TRUE)#takes awhile
+ddd<-read.csv("L1_SST_data_ProcessedNOV21_2023.csv", header = TRUE)#takes awhile
 
 ####The Seasons
 ddd$season<-NA
@@ -67,5 +72,5 @@ plot(SSTindicators[SSTindicators$Variable == "summer_OISST", "Year"],
 
 
 #write combined dataset to file
-setwd("~/Desktop/NYB Indicators/Final_timeseries")
-write.csv(SSTindicators, "OISST_Means_AUG_31_2021.csv")
+setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2023")
+write.csv(SSTindicators, "OISST_Means_NOV_21_2023.csv")

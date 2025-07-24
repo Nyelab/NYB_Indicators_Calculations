@@ -14,6 +14,7 @@ BT<-read.csv("commercial_landings_Jan_06_2022.csv", header = TRUE)
 BT
 KG <- BT[BT$Variable == 'KG', ]
 KG <- KG[order(KG$Year),]
+KG$Val <- KG$Val/1000 #metric ton
 USD <- BT[BT$Variable == 'USD', ]
 USD <- USD[order(USD$Year),]
 
@@ -28,7 +29,7 @@ gam.check(mod)
 
 pdata <- with(KG, data.frame(Year = Year))
 p2_mod <- predict(mod, newdata = pdata,  type = "terms", se.fit = TRUE)
-intercept = 64665135  # look at p2_mod and extract the intercept
+intercept = 64665.14  # look at p2_mod and extract the intercept
 pdata <- transform(pdata, p2_mod = p2_mod$fit[,1], se2 = p2_mod$se.fit[,1])
 
 #  Now that we have the model prediction, the next step is to calculate the first derivative
@@ -58,7 +59,7 @@ ggplot() +
   geom_line(data = pdata, aes(y = unlist(mod.dsig$incr)+intercept, x = Year), color = "blue", size = 1) + 
   geom_line(data = pdata, aes(y = unlist(mod.dsig$decr)+intercept, x = Year), color = 'red', size = 1) + 
   theme_bw() +
-  labs (y = "KG", x = 'Year', title = 'Commercial Harvest') + 
+  labs (y = "Metric Tons", x = 'Year', title = 'Commercial Harvest') + 
   theme(plot.title=element_text(size = 16,face = 'bold',hjust = 0.5), axis.title=element_text(size = 14, face = 'bold'), axis.text= element_text(color = 'black', size = 12))
 
 # HARVEST Creat a GAM - adjust k and remember to check model

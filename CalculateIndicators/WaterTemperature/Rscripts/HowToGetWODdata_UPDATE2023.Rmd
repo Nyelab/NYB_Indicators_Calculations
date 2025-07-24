@@ -1,0 +1,1366 @@
+---
+title: "HowToGetWODdata_UPDATE"
+author: "laura gruenburg"
+date: "7/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### What this does
+This script tells you how to get data from the World Ocean Database website and then re-format it into a dataframe in R, keeping only some of the variables. Each CTD cast is reduced to a row of data. The script takes a very long time because of some for loops, but once you do it then dataset can be used in a variety of ways for indicators. 
+
+Kurtcheim@gmail.com
+lagruenburg@gmail.com
+Last Updated December 5, 2023
+
+I completed this for 2019-2023.  STarting for the 2023 report I only updated the WODB data for the last 5 years.  It takes a crazy long time if you download the same data over and over again.  Many studies have a three year embargo no the data, so hopefully going back five years and downloading the data (we will override those five years from previous dataset) will incorporate any recently added data.
+
+### World Ocean Database CTD dataset
+The world ocean dataset has an extensive record of CTD/XBT and other data. As of September 2019, there are about 80,000 casts completed in the NE US Continental shelf large marine ecosystem. These can be used for a variety of indicators.
+
+### Get the data
+Please note that FOR THIS CODE TO WORK, the steps must be taken exactly as follows so data downloaded are in the same format. Also, if the data formatting of WOD changes, this code will (most likely) stop working. 
+
+To get the WOD data, you need to go to the [world ocean database select and search](https://www.nodc.noaa.gov/OC5/SELECT/dbsearch/dbsearch.html). What I did (July 26, 2021) was to click the **Geographic coordinates** check box as well as the **Measured Variables** check box; then I clicked 'build a query'. 
+
+From here, I selected the desired data variable in column 2.  I completed this process once for temperature, once for salinity, and once for temperature and salinity (to calculate density using gibbs seawater toolbox).  The geographic coordiantes roughly surrounding the NYB are as follows 
+
+Western edge = -75.00 (-74)
+Eastern edge = -61.00 (-70.5)
+Northern edge = 43.00 (41.5)
+Southern edge = 38.00 (38.25)  
+
+Clicking the **get an inventory** tab will take you to a page where it says how much data are avaialbe for that region, it may take a few minutes for the page to load. If you are happy click the **download data** tab and you will then have some choices.
+
+For the following scripts to work with new datasets, you must choose the netCDF single cast format on the right hand side of the page. This is the ONLY thing you need to click, then go to the bottom and enter your email address. Click extract data and the dataset will be available at a web link in a few miniutes to hours depending on how big they are, you will receive an email with this link to download the file(s). The data may be provided in separate files that correspond to the type of instrument (CTD, XBT, OSD etc.). 
+
+### Get the data into a useable format
+Here is how Kurt described the data:
+"THe data is weird to deal with. There may be i CTD casts in the dataset and at each of those casts there may be j depths at which measurments are made. Since j (number of depths for cast i) will be different for every i (an individual cast), it doesn not make sense to have a symetrical array because there would be alot of wasted space (i.e., Lat x Long x deepest depth in the entire dataset...with many elements of the matrix empty).Moreover, its not really gridded at regular lat long intervals so any sort of raster grid format wouldnt work."
+
+The netCDF single cast format will produce a neat netcdf file for each cast.  But there are thousands of casts so looping through each one and retrieving the relevant data is time consuming.
+
+This script loops through the individual netCDF files and extracts the relevant data, starting here with temperature from CTD.  The data are then aggregated in a data frame.
+
+## TEMPERATURE
+```{r}
+library(ncdf4)#the packge for .nc files
+library(rgdal)
+library(lubridate)
+library(mgcv)
+library(effects)
+#library(mgcViz)
+library(stringr)
+library(oce)
+```
+
+```{r}
+setwd("/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/CTD") # set the working directory to the location of the 
+#setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
+
+
+# Here we retrieve all th temperature CTD data THIS TAKES APPROX 45 min
+filepath = ('/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/CTD/wod_020179580Ostart.nc')
+output <- nc_open(filepath)
+
+lon <- ncvar_get(output, varid = "lon")
+lat <- ncvar_get(output, varid = 'lat')
+date <- ncvar_get(output, varid = 'date')
+bot_depth <- ncvar_get(output, varid = 'Bottom_Depth')
+depth <- ncvar_get(output, varid = 'z')
+depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+temp <- ncvar_get(output, varid = 'Temperature')
+temp_flag <- ncvar_get(output,varid = 'Temperature_WODflag')
+temp_dataCTD <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'temp' = temp,
+                        'temp_flag' = temp_flag,
+                        'profile_num' = 1)
+nc_close(output)
+
+files <- list.files(path="/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/CTD/", pattern="*O.nc", full.names=TRUE, recursive=TRUE)
+k <- 2
+for(name in files) {
+  output <- nc_open(name)
+  lon <- ncvar_get(output, varid = "lon")
+  lat <- ncvar_get(output, varid = 'lat')
+  date <- ncvar_get(output, varid = 'date')
+  bot_depth<- tryCatch({ncvar_get(output,varid = 'Bottom_Depth')}, error=function(cond) {return(NA)} ) # Note that many of the casts do not have a bottom depth variable, we will deal with this later.
+  depth <- ncvar_get(output, varid = 'z')
+  depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+  temp <- ncvar_get(output, varid = 'Temperature')
+  temp_flag <- ncvar_get(output,varid = 'Temperature_WODflag')
+  temp_data_new <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'temp' = temp,
+                        'temp_flag' = temp_flag,
+                        'profile_num' = k)
+  temp_dataCTD <- rbind(temp_dataCTD, temp_data_new)
+  nc_close(output)
+  k <- k+1
+}
+
+# save as a csv
+write.csv(temp_dataCTD,"WOD_CTD_Dec5_2023.csv")
+
+# read the saved csv
+CTD <- read.csv("/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/CTD/WOD_CTD_Dec5_2023.csv")
+temp_dataCTD <- CTD
+#Check how many temperqture profiles we have (1051 as of Dec5, 2023 for 2019 through 2023)
+max(unique(temp_dataCTD['profile_num']))
+
+#See which data is actually within the NYB
+
+#####load required functions and shapefiles
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/Rfunctions")
+source("LabelPoints.R")
+
+lazylab<-klab(temp_dataCTD$lat, temp_dataCTD$lon) #Label casts that are within the NYB shapefile
+temp_dataCTD_EPU<-data.frame(temp_dataCTD, lazylab) #Combine data and labels into new dataframe
+temp_dataCTD_EPU$EPU<-as.character(temp_dataCTD_EPU$EPU)
+###Label casts not in an EPU
+temp_dataCTD_EPU[is.na(temp_dataCTD_EPU$EPU),"EPU"]<-"Not in NES"
+
+# Subset dataframe for NYB ONLY
+temp_dataCTD_NYB<-temp_dataCTD_EPU[temp_dataCTD_EPU$NYB %in% "NYB" == TRUE,]
+nrow(unique(temp_dataCTD_NYB['profile_num']))
+
+#Remove values that don't meet quality control.  WOD flags ftp://ftp.nodc.noaa.gov/pub/data.nodc/woa/WOD/CODES/PDF/DefinitionQualityFlags.pdf
+
+temp_dataCTD_NYB<- temp_dataCTD_NYB[temp_dataCTD_NYB$depth_flag == 0, ]
+temp_dataCTD_NYB<- temp_dataCTD_NYB[temp_dataCTD_NYB$temp_flag == 0, ]
+nrow(temp_dataCTD_NYB)
+new_col <- rep(NA, 57360) #rep(NA, 642682)
+temp_dataCTD_NYB$seafloor_depth<- new_col #create a new column for the seafloor topography
+temp_dataCTD_NYB$surf_temp<-new_col
+temp_dataCTD_NYB$surf_temp_1m <- new_col
+temp_dataCTD_NYB$bot_T<-new_col
+temp_dataCTD_NYB$bot_T_10m<-new_col
+
+#load seafloor topography
+topo<- nc_open("/Users/nyelab/Downloads/ETOPO1_Bed_g_gmt4(1).grd")
+topolat<- ncvar_get(topo, 'y')
+topolon<- ncvar_get(topo, 'x')
+topo_z<- ncvar_get(topo, 'z')
+
+for(i in unique(temp_dataCTD_NYB$profile_num)) {
+  latitude<- temp_dataCTD_NYB$lat[temp_dataCTD_NYB$profile_num == i]
+  new_lat<- floor(latitude) + 0.01666667*round((latitude - floor(latitude))/0.01666667)
+  y_ind<-  match(round(new_lat, digits = 2), round(topolat, digits = 2))
+  longitude<- temp_dataCTD_NYB$lon[temp_dataCTD_NYB$profile_num == i] *-1
+  new_lon<- (floor(longitude) + 0.01666667*round((longitude - floor(longitude))/0.01666667))*-1
+  x_ind<- match(round(new_lon,digits = 2), round(topolon,digits = 2))
+  temp_dataCTD_NYB$seafloor_depth[temp_dataCTD_NYB$profile_num==i]<- topo_z[x_ind,y_ind]
+}
+
+# Create a new dataframe that will have surface and bottom temperature as well as T at 50m, only if the surface measurement is <= 1meter deep and the bottom is within 10 meters.  T at 50m will be linearly interpolated as long as seafloor_depth>50m
+subset1<- temp_dataCTD_NYB[temp_dataCTD_NYB$profile_num == 12,]
+NYB_ctd<- data.frame(subset1[1,])
+
+NYB_ctd$surf_temp<-subset1$temp[1]
+
+if(subset1$depth[1] <= 1) {
+  NYB_ctd$surf_temp_1m<- subset1$temp[1]
+}
+
+NYB_ctd$bot_T<-tail(subset1$temp,1)
+
+if(subset1$bot_depth[1] >0 ) {
+  if(abs((tail(subset1$bot_depth,1)) - tail(subset1$depth,1)) <=10) {
+  NYB_ctd$bot_T_10m<- tail(subset1$temp,1)
+  } else {
+    NYB_ctd$bot_T_10m<- NA
+  }
+  } else {
+    if(abs(-1*(tail(subset1$seafloor_depth,1)) - tail(subset1$depth,1)) <=10) {
+        NYB_ctd$bot_T_10<- tail(subset1$temp,1)
+        } else {
+          NYB_ctd$bot_T_10<- NA
+        }
+  }
+
+t50 = approx(subset1$depth,subset1$temp,50,method ='linear', rule =1)
+NYB_ctd$T_50 = t50$y
+
+
+
+for(i in unique(temp_dataCTD_NYB$profile_num)[2:595]) {
+  cast<- temp_dataCTD_NYB[temp_dataCTD_NYB$profile_num == i,]
+  ctd_cast<- data.frame(cast[1,])
+  ctd_cast$surf_temp<-cast$temp[1]
+  ctd_cast$bot_T<-tail(cast$temp,1)
+  if(cast$depth[1] <= 1) {
+    ctd_cast$surf_temp_1m<- cast$temp[1]
+    } else {
+      ctd_cast$surf_temp_1m <- NA
+    }
+
+if(is.na(cast$bot_depth[1]) == FALSE) {
+  if(abs((tail(cast$bot_depth,1)) - tail(cast$depth,1)) <=10) {
+    ctd_cast$bot_T_10m<- tail(cast$temp,1)
+    } else {
+      ctd_cast$bot_T_10m<- NA
+      }
+  } else {
+    if(abs(-1*(tail(cast$seafloor_depth,1)) - tail(cast$depth,1)) <=10) {
+      ctd_cast$bot_T_10m<- tail(cast$temp,1)
+      } else {
+        ctd_cast$bot_T_10m<- NA
+      }
+    }
+  NYB_ctd <- rbind(NYB_ctd, ctd_cast)
+}
+
+rownames(NYB_ctd)<-1:nrow(NYB_ctd)
+
+
+# Here we retrieve all th temperature XBT data THIS TAKES APPROX 2 hrs. It reads over 27,000 individual netCDF files <- the first time.  The subsequent 5 year download is very quick, less than a minute.
+filepath = ('/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/XBT/wod_019431356Ostart.nc')
+output <- nc_open(filepath)
+
+lon <- ncvar_get(output, varid = "lon")
+lat <- ncvar_get(output, varid = 'lat')
+date <- ncvar_get(output, varid = 'date')
+#bot_depth<- tryCatch({ncvar_get(output,varid = 'Bottom_Depth')}, error=function(cond) {return(NA)} )
+depth <- ncvar_get(output, varid = 'z')
+depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+temp <- ncvar_get(output, varid = 'Temperature')
+temp_flag <- ncvar_get(output,varid = 'Temperature_WODflag')
+temp_dataXBT <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'temp' = temp,
+                        'temp_flag' = temp_flag,
+                        'profile_num' = 1)
+nc_close(output)
+
+files <- list.files(path="/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/XBT/", pattern="*O.nc", full.names=TRUE, recursive=TRUE)
+k <- 2
+for(name in files) {
+  output <- nc_open(name)
+  lon <- ncvar_get(output, varid = "lon")
+  lat <- ncvar_get(output, varid = 'lat')
+  date <- ncvar_get(output, varid = 'date')
+  #bot_depth<- tryCatch({ncvar_get(output,varid = 'Bottom_Depth')}, error=function(cond) {return(NA)} ) # Note that many of the casts do not have a bottom depth variable, we will deal with this later.
+  depth <- ncvar_get(output, varid = 'z')
+  depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+  temp <- ncvar_get(output, varid = 'Temperature')
+  temp_flag <- ncvar_get(output,varid = 'Temperature_WODflag')
+  temp_data_new <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'temp' = temp,
+                        'temp_flag' = temp_flag,
+                        'profile_num' = k)
+  temp_dataXBT <- rbind(temp_dataXBT, temp_data_new)
+  nc_close(output)
+  k <- k+1
+  if(k%%1000 == 0) {
+    print(k)}
+  }
+
+# save as a csv
+write.csv(temp_dataXBT,"WOD_XBT_Dec5_2023.csv")
+
+temp_dataXBT <- read.csv("/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/XBT/WOD_XBT_Dec5_2023.csv")
+#Check how many temperqture profiles we have (27,108 as of July 30, 2021) (203 for 2019-2023)
+max(unique(temp_dataXBT['profile_num']))
+
+#See which data is actually within the NYB
+
+#####load required functions and shapefiles
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/Rfunctions")
+source("LabelPoints.R")
+
+lazylab<-klab(temp_dataXBT$lat, temp_dataXBT$lon) #Label casts that are within the NYB shapefile
+temp_dataXBT_EPU<-data.frame(temp_dataXBT, lazylab) #Combine data and labels into new dataframe
+temp_dataXBT_EPU$EPU<-as.character(temp_dataXBT_EPU$EPU)
+###Label casts not in an EPU
+temp_dataXBT_EPU[is.na(temp_dataXBT_EPU$EPU),"EPU"]<-"Not in NES"
+
+# Subset dataframe for NYB ONLY
+temp_dataXBT_NYB<-temp_dataXBT_EPU[temp_dataXBT_EPU$NYB %in% "NYB" == TRUE,]
+length(unique(temp_dataXBT_NYB['profile_num']))
+
+#Remove values that don't meet quality control.  WOD flags ftp://ftp.nodc.noaa.gov/pub/data.nodc/woa/WOD/CODES/PDF/DefinitionQualityFlags.pdf
+
+temp_dataXBT_NYB<- temp_dataXBT_NYB[temp_dataXBT_NYB$depth_flag == 0, ]
+temp_dataXBT_NYB<- temp_dataXBT_NYB[temp_dataXBT_NYB$temp_flag == 0, ]
+new_col <- rep(NA, 64710) #rep(NA, 2574016)
+temp_dataXBT_NYB$seafloor_depth<- new_col #create a new column for the seafloor topography
+temp_dataXBT_NYB$surf_temp<-new_col
+temp_dataXBT_NYB$surf_temp_1m <- new_col
+temp_dataXBT_NYB$bot_T<-new_col
+temp_dataXBT_NYB$bot_T_10m<-new_col
+
+#load seafloor topography
+topo<- nc_open("/Users/nyelab/Downloads/ETOPO1_Bed_g_gmt4(1).grd")
+topolat<- ncvar_get(topo, 'y')
+topolon<- ncvar_get(topo, 'x')
+topo_z<- ncvar_get(topo, 'z')
+
+for(i in unique(temp_dataXBT_NYB$profile_num)) {
+  latitude<- temp_dataXBT_NYB$lat[temp_dataXBT_NYB$profile_num == i]
+  new_lat<- floor(latitude) + 0.01666667*round((latitude - floor(latitude))/0.01666667)
+  y_ind<-  match(round(new_lat, digits = 2), round(topolat, digits = 2))
+  longitude<- temp_dataXBT_NYB$lon[temp_dataXBT_NYB$profile_num == i] *-1
+  new_lon<- (floor(longitude) + 0.01666667*round((longitude - floor(longitude))/0.01666667))*-1
+  x_ind<- match(round(new_lon,digits = 2), round(topolon,digits = 2))
+  temp_dataXBT_NYB$seafloor_depth[temp_dataXBT_NYB$profile_num==i]<- topo_z[x_ind,y_ind]
+}
+
+# Create a new dataframe that will have surface and bottom temperature as well as T at 50m, only if the surface measurement is <= 1meter deep and the bottom is within 10 meters.  T at 50m will be linearly interpolated as long as seafloor_depth>50m
+
+#t50 = approx(subset1$depth,subset1$temp,50,method ='linear', rule =1)
+#NYB_ctd$T_50 = t50$y
+
+subset1<- temp_dataXBT_NYB[temp_dataXBT_NYB$profile_num == 5,]
+NYB_xbt<- data.frame(subset1[1,])
+
+
+NYB_xbt$surf_temp<-subset1$temp[1]
+
+if(subset1$depth[1] <= 1) {
+  NYB_xbt$surf_temp_1m<- subset1$temp[1]
+}
+NYB_xbt$bot_T<-tail(subset1$temp,1)
+
+if(abs(-1*(tail(subset1$seafloor_depth,1)) - tail(subset1$depth,1)) <=10) {
+  NYB_xbt$bot_T_10m<- tail(subset1$temp,1)
+  } else {
+    NYB_xbt$bot_T_10m<- NA
+  }
+
+
+for(i in unique(temp_dataXBT_NYB$profile_num)[2:129]) {
+  cast<- temp_dataXBT_NYB[temp_dataXBT_NYB$profile_num == i,]
+ XBT_cast<- data.frame(cast[1,])
+  XBT_cast$surf_temp<-cast$temp[1]
+  XBT_cast$bot_T<-tail(cast$temp,1)
+  if(cast$depth[1] <= 1) {
+    XBT_cast$surf_temp_1m<- cast$temp[1]
+    } else {
+      XBT_cast$surf_temp_1m <- NA
+    }
+  if(abs(-1*(tail(cast$seafloor_depth,1)) - tail(cast$depth,1)) <=10) {
+    XBT_cast$bot_T_10m<- tail(cast$temp,1)
+    } else {
+      XBT_cast$bot_T_10m<- NA
+      }
+  NYB_xbt <- rbind(NYB_xbt, XBT_cast)
+}
+
+rownames(NYB_xbt)<-1:nrow(NYB_xbt)
+
+NYB_xbt_ctd <- rbind(NYB_ctd,NYB_xbt)
+
+write.csv(NYB_xbt_ctd,"WOD_CTD_XBT_Dec8_2023.csv")
+
+## NO MBT for 2019 through 2023
+# Here we retrieve all th temperature MBT data THIS TAKES APPROX 1 hrs. It reads over 37,000 individual netCDF files
+filepath = ('/Users/nyelab/Downloads/ocldb1627308636.20269.MBT/wod_005001994Ostart.nc')
+output <- nc_open(filepath)
+
+lon <- ncvar_get(output, varid = "lon")
+lat <- ncvar_get(output, varid = 'lat')
+date <- ncvar_get(output, varid = 'date')
+bot_depth<- tryCatch({ncvar_get(output,varid = 'Bottom_Depth')}, error=function(cond) {return(NA)} )
+depth <- ncvar_get(output, varid = 'z')
+depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+temp <- ncvar_get(output, varid = 'Temperature')
+temp_flag <- ncvar_get(output,varid = 'Temperature_WODflag')
+temp_dataMBT <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'temp' = temp,
+                        'temp_flag' = temp_flag,
+                        'profile_num' = 1)
+nc_close(output)
+
+files <- list.files(path="/Users/nyelab/Downloads/ocldb1627308636.20269.MBT", pattern="*O.nc", full.names=TRUE, recursive=TRUE)
+k <- 2
+for(name in files) {
+  output <- nc_open(name)
+  lon <- ncvar_get(output, varid = "lon")
+  lat <- ncvar_get(output, varid = 'lat')
+  date <- ncvar_get(output, varid = 'date')
+  bot_depth<- tryCatch({ncvar_get(output,varid = 'Bottom_Depth')}, error=function(cond) {return(NA)} ) # Note that many of the casts do not have a bottom depth variable, we will deal with this later.
+  depth <- ncvar_get(output, varid = 'z')
+  depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+  temp <- ncvar_get(output, varid = 'Temperature')
+  temp_flag <- ncvar_get(output,varid = 'Temperature_WODflag')
+  temp_data_new <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'temp' = temp,
+                        'temp_flag' = temp_flag,
+                        'profile_num' = k)
+  temp_dataMBT <- rbind(temp_dataMBT, temp_data_new)
+  nc_close(output)
+  k <- k+1
+  if(k%%1000 == 0) {
+    print(k)}
+  }
+
+# save as a csv
+write.csv(temp_dataMBT,"WOD_MBT_July30_2021.csv")
+
+# read in csv
+temp_dataMBT<- read.csv("/Users/nyelab/Desktop/NYB Indicators/Datasets/Shapefiles/WOD_MBT_July30_2021.csv")
+
+#Check how many temperqture profiles we have (37,251 as of July 30, 2021)
+max(unique(temp_dataMBT['profile_num']))
+
+#See which data is actually within the NYB
+
+#####load required functions and shapefiles
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/Rfunctions")
+source("LabelPoints.R")
+
+lazylab<-klab(temp_dataMBT$lat, temp_dataMBT$lon) #Label casts that are within the NYB shapefile
+temp_dataMBT_EPU<-data.frame(temp_dataMBT, lazylab) #Combine data and labels into new dataframe
+temp_dataMBT_EPU$EPU<-as.character(temp_dataMBT_EPU$EPU)
+###Label casts not in an EPU
+temp_dataMBT_EPU[is.na(temp_dataMBT_EPU$EPU),"EPU"]<-"Not in NES"
+
+# Subset dataframe for NYB ONLY
+temp_dataMBT_NYB<-temp_dataMBT_EPU[temp_dataMBT_EPU$NYB %in% "NYB" == TRUE,]
+length(unique(temp_dataMBT_NYB['profile_num']))
+
+#Remove values that don't meet quality control.  WOD flags ftp://ftp.nodc.noaa.gov/pub/data.nodc/woa/WOD/CODES/PDF/DefinitionQualityFlags.pdf
+
+temp_dataMBT_NYB<- temp_dataMBT_NYB[temp_dataMBT_NYB$depth_flag == 0, ]
+temp_dataMBT_NYB<- temp_dataMBT_NYB[temp_dataMBT_NYB$temp_flag == 0, ]
+new_col <- rep(NA, 155146)
+temp_dataMBT_NYB$seafloor_depth<- new_col #create a new column for the seafloor topography
+temp_dataMBT_NYB$surf_temp<-new_col
+temp_dataMBT_NYB$surf_temp_1m <- new_col
+temp_dataMBT_NYB$bot_T<-new_col
+temp_dataMBT_NYB$bot_T_10m<-new_col
+
+#load seafloor topography
+topo<- nc_open("/Users/nyelab/Downloads/ETOPO1_Bed_g_gmt4(1).grd")
+topolat<- ncvar_get(topo, 'y')
+topolon<- ncvar_get(topo, 'x')
+topo_z<- ncvar_get(topo, 'z')
+
+for(i in unique(temp_dataMBT_NYB$profile_num)) {
+  latitude<- temp_dataMBT_NYB$lat[temp_dataMBT_NYB$profile_num == i]
+  new_lat<- floor(latitude) + 0.01666667*round((latitude - floor(latitude))/0.01666667)
+  y_ind<-  match(round(new_lat, digits = 2), round(topolat, digits = 2))
+  longitude<- temp_dataMBT_NYB$lon[temp_dataMBT_NYB$profile_num == i] *-1
+  new_lon<- (floor(longitude) + 0.01666667*round((longitude - floor(longitude))/0.01666667))*-1
+  x_ind<- match(round(new_lon,digits = 2), round(topolon,digits = 2))
+  temp_dataMBT_NYB$seafloor_depth[temp_dataMBT_NYB$profile_num==i]<- topo_z[x_ind,y_ind]
+}
+
+# Create a new dataframe that will have surface and bottom temperature as well as T at 50m, only if the surface measurement is <= 1meter deep and the bottom is within 10 meters.  T at 50m will be linearly interpolated as long as seafloor_depth>50m
+subset1<- temp_dataMBT_NYB[temp_dataMBT_NYB$profile_num == 3,]
+NYB_mbt<- data.frame(subset1[1,])
+NYB_mbt$surf_temp<-subset1$temp[1]
+
+if(subset1$depth[1] <= 1) {
+  NYB_mbt$surf_temp_1m<- subset1$temp[1]
+}
+NYB_mbt$bot_T<-tail(subset1$temp,1)
+
+if(is.na(subset1$bot_depth[1]) == FALSE ) {
+  if(abs((tail(subset1$bot_depth,1)) - tail(subset1$depth,1)) <=10) {
+  NYB_mbt$bot_T_10m<- tail(subset1$temp,1)
+  } else {
+    NYB_mbt$bot_T_10m<- NA
+  }
+  } else {
+    if(abs(-1*(tail(subset1$seafloor_depth,1)) - tail(subset1$depth,1)) <=10) {
+        NYB_mbt$bot_T_10m<- tail(subset1$temp,1)
+        } else {
+          NYB_mbt$bot_T_10m<- NA
+        }
+  }
+
+#t50 = approx(subset1$depth,subset1$temp,50,method ='linear', rule =1)
+#NYB_ctd$T_50 = t50$y
+
+
+
+for(i in unique(temp_dataMBT_NYB$profile_num)[2:8405]) {
+  cast<- temp_dataMBT_NYB[temp_dataMBT_NYB$profile_num == i,]
+  mbt_cast<- data.frame(cast[1,])
+  mbt_cast$surf_temp<-cast$temp[1]
+  mbt_cast$bot_T<-tail(cast$temp,1)
+  if(cast$depth[1] <= 1) {
+    mbt_cast$surf_temp_1m<- cast$temp[1]
+    } else {
+      mbt_cast$surf_temp_1m <- NA
+    }
+if(is.na(cast$bot_depth[1]) == FALSE) {
+  if(abs((tail(cast$bot_depth,1)) - tail(cast$depth,1)) <=10) {
+    mbt_cast$bot_T_10m<- tail(cast$temp,1)
+    } else {
+      mbt_cast$bot_T_10m<- NA
+      }
+  } else {
+    if(abs(-1*(tail(cast$seafloor_depth,1)) - tail(cast$depth,1)) <=10) {
+      mbt_cast$bot_T_10m<- tail(cast$temp,1)
+      } else {
+        mbt_cast$bot_T_10m<- NA
+      }
+    }
+  NYB_mbt <- rbind(NYB_mbt, mbt_cast)
+}
+
+rownames(NYB_mbt)<-1:nrow(NYB_mbt)
+
+# Here we retrieve all the temperature GLD data THIS TAKES APPROX a very very very long time
+filepath = ('/Users/nyelab/Downloads/ocldb1627308636.20269.GLD/wod_019948034O_start.nc')
+output <- nc_open(filepath)
+
+lon <- ncvar_get(output, varid = "lon")
+lat <- ncvar_get(output, varid = 'lat')
+date <- ncvar_get(output, varid = 'date')
+#bot_depth <- ncvar_get(output, varid = 'Bottom_Depth')
+depth <- ncvar_get(output, varid = 'z')
+depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+temp <- ncvar_get(output, varid = 'Temperature')
+temp_flag <- ncvar_get(output,varid = 'Temperature_WODflag')
+temp_dataGLD <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        #'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'temp' = temp,
+                        'temp_flag' = temp_flag,
+                        'profile_num' = 1)
+nc_close(filepath)
+
+files <- list.files(path="/Users/nyelab/Downloads/ocldb1627308636.20269.GLD", pattern="*O.nc", full.names=TRUE, recursive=TRUE)
+k <- 2
+for(name in files) {
+  output <- nc_open(name)
+  lon <- ncvar_get(output, varid = "lon")
+  lat <- ncvar_get(output, varid = 'lat')
+  date <- ncvar_get(output, varid = 'date')
+  #bot_depth<- tryCatch({ncvar_get(output,varid = 'Bottom_Depth')}, error=function(cond) {return(NA)} ) # Note that many of the casts do not have a bottom depth variable, we will deal with this later.
+  depth <- ncvar_get(output, varid = 'z')
+  depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+  temp <- ncvar_get(output, varid = 'Temperature')
+  temp_flag <- ncvar_get(output,varid = 'Temperature_WODflag')
+  temp_data_new <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        #'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'temp' = temp,
+                        'temp_flag' = temp_flag,
+                        'profile_num' = k)
+  temp_dataGLD <- rbind(temp_dataGLD, temp_data_new)
+  nc_close(output)
+  k <- k+1
+  if(k%%1000 == 0) {
+    print(k)}
+  }
+
+# save as a csv
+write.csv(temp_dataGLD,"WOD_GLD_Aug24_2021.csv")
+
+#Check how many temperqture profiles we have (86,665 as of Aug 24, 2021)
+max(unique(temp_dataGLD['profile_num']))
+
+#See which data is actually within the NYB
+
+#####load required functions and shapefiles
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/Rfunctions")
+source("LabelPoints.R")
+
+lazylab<-klab(temp_dataGLD$lat, temp_dataGLD$lon) #Label casts that are within the NYB shapefile
+temp_dataGLD_EPU<-data.frame(temp_dataGLD, lazylab) #Combine data and labels into new dataframe
+temp_dataGLD_EPU$EPU<-as.character(temp_dataGLD_EPU$EPU)
+###Label casts not in an EPU
+temp_dataGLD_EPU[is.na(temp_dataGLD_EPU$EPU),"EPU"]<-"Not in NES"
+
+# Subset dataframe for NYB ONLY
+temp_dataGLD_NYB<-temp_dataGLD_EPU[temp_dataGLD_EPU$NYB %in% "NYB" == TRUE,]
+length(unique(temp_dataGLD_NYB['profile_num']))
+
+#Remove values that don't meet quality control.  WOD flags ftp://ftp.nodc.noaa.gov/pub/data.nodc/woa/WOD/CODES/PDF/DefinitionQualityFlags.pdf
+
+temp_dataGLD_NYB<- temp_dataGLD_NYB[temp_dataGLD_NYB$depth_flag == 0, ]
+temp_dataGLD_NYB<- temp_dataGLD_NYB[temp_dataGLD_NYB$temp_flag == 0, ]
+new_col <- rep(NA, 967116)
+temp_dataGLD_NYB$seafloor_depth<- new_col #create a new column for the seafloor topography
+temp_dataGLD_NYB$surf_temp <- new_col
+temp_dataGLD_NYB$surf_temp_1m<- new_col
+temp_dataGLD_NYB$bot_T <- new_col
+temp_dataGLD_NYB$bot_T_10m<- new_col
+NYB_gld$bot_depth<-new_col
+NYB_gld$X<-new_col
+
+#load seafloor topography
+topo<- nc_open("/Users/nyelab/Downloads/ETOPO1_Bed_g_gmt4(1).grd")
+topolat<- ncvar_get(topo, 'y')
+topolon<- ncvar_get(topo, 'x')
+topo_z<- ncvar_get(topo, 'z')
+
+for(i in unique(temp_dataGLD_NYB$profile_num)) {
+  latitude<- temp_dataGLD_NYB$lat[temp_dataGLD_NYB$profile_num == i]
+  new_lat<- floor(latitude) + 0.01666667*round((latitude - floor(latitude))/0.01666667)
+  y_ind<-  match(round(new_lat, digits = 2), round(topolat, digits = 2))
+  longitude<- temp_dataGLD_NYB$lon[temp_dataGLD_NYB$profile_num == i] *-1
+  new_lon<- (floor(longitude) + 0.01666667*round((longitude - floor(longitude))/0.01666667))*-1
+  x_ind<- match(round(new_lon,digits = 2), round(topolon,digits = 2))
+  temp_dataGLD_NYB$seafloor_depth[temp_dataGLD_NYB$profile_num==i]<- topo_z[x_ind,y_ind]
+}
+
+# Create a new dataframe that will have surface and bottom temperature as well as T at 50m, only if the surface measurement is <= 1meter deep and the bottom is within 10 meters.  T at 50m will be linearly interpolated as long as seafloor_depth>50m
+subset1<- temp_dataGLD_NYB[temp_dataGLD_NYB$profile_num == 3381,]
+NYB_gld<- data.frame(subset1[1,])
+NYB_gld$surf_temp<-subset1$temp[1]
+  
+if(subset1$depth[1] <= 1) {
+  NYB_gld$surf_temp_1m<- subset1$temp[1]
+} else {
+      NYB_gld$surf_temp_1m <- NA
+}
+NYB_gld$bot_T<-tail(subset1$temp,1)
+if(abs(-1*(tail(subset1$seafloor_depth,1)) - tail(subset1$depth,1)) <=10) {
+  NYB_gld$bot_T_10m<- tail(subset1$temp,1)
+  } else {
+    NYB_gld$bot_T_10m<- NA
+  }
+
+
+for(i in unique(temp_dataGLD_NYB$profile_num)[2:7246]) {
+  cast<- temp_dataGLD_NYB[temp_dataGLD_NYB$profile_num == i,]
+ GLD_cast<- data.frame(cast[1,])
+ GLD_cast$surf_temp<-cast$temp[1]
+ GLD_cast$bot_T<-tail(cast$temp,1)
+  if(cast$depth[1] <= 1) {
+    GLD_cast$surf_temp_1m<- cast$temp[1]
+    } else {
+      GLD_cast$surf_temp_1m <- NA
+    }
+  if(abs(-1*(tail(cast$seafloor_depth,1)) - tail(cast$depth,1)) <=10) {
+    GLD_cast$bot_T_10m<- tail(cast$temp,1)
+    } else {
+      GLD_cast$bot_T_10m<- NA
+      }
+  NYB_gld <- rbind(NYB_gld, GLD_cast)
+}
+
+#t50 = approx(subset1$depth,subset1$temp,50,method ='linear', rule =1)
+#NYB_ctd$T_50 = t50$y
+
+
+
+for(i in unique(temp_dataGLD_NYB$profile_num)[2:7246]) {
+  cast<- temp_dataGLD_NYB[temp_dataGLD_NYB$profile_num == i,]
+  gld_cast<- data.frame(cast[1,])
+  if(cast$depth[1] <= 1) {
+    gld_cast$surf_temp<- cast$temp[1]
+    } else {
+      gld_cast$surf_temp <- NA
+    }
+if(is.na(cast$bot_depth[1]) == FALSE) {
+  if(abs((tail(cast$bot_depth,1)) - tail(cast$depth,1)) <=10) {
+    gld_cast$bot_T<- tail(cast$temp,1)
+    } else {
+      gld_cast$bot_T<- NA
+      }
+  } else {
+    if(abs(-1*(tail(cast$seafloor_depth,1)) - tail(cast$depth,1)) <=10) {
+      gld_cast$bot_T<- tail(cast$temp,1)
+      } else {
+        mbt_cast$bot_T<- NA
+      }
+    }
+  NYB_gld <- rbind(NYB_gld, gld_cast)
+}
+
+rownames(NYB_gld)<-1:nrow(NYB_gld)
+
+NYB_temp<- rbind(NYB_ctd, NYB_xbt, NYB_mbt, NYB_gld)
+NYB_temp$year<- floor(NYB_temp$date/10000)
+NYB_temp$month<- floor((NYB_temp$date - floor(NYB_temp$date/10000)*10000)/100)
+
+write.csv(NYB_temp,"WOD_CTD_XBT_MBT_GLD_August30_2021.csv")
+
+X<- NYB_temp$lon[(NYB_temp$year == 1977) & (NYB_temp$month == 9)]
+Y<- NYB_temp$lat[(NYB_temp$year == 1977) & (NYB_temp$month == 9)]
+Z<- NYB_temp$temp[(NYB_temp$year == 1977) & (NYB_temp$month == 9)]
+X
+library(ggplot2)
+library(reshape2)
+library(metR)
+
+gg = ggplot(data, aes(x = X, y = Y)) + 
+  geom_raster(aes(fill = Z)) + 
+  geom_contour(aes(z = Z), colour = "white", size = 0.2, alpha = 0.5) + 
+  geom_text_contour(aes(z = Z),  colour = "white" ) +
+  labs(x = "Filtered light intensity (umol photons/m2/s)", 
+      y = "Dry Biomass Concentration (g/L)", 
+      fill = "Productivity (umol O2/g biomass/s)") + 
+  theme(legend.title = element_text(size = 10, face = "bold"), 
+  legend.position = "top", panel.background = element_blank(), 
+  axis.text = element_text(colour = "black", size = 10, face = "bold"), 
+  axis.title = element_text(size = 12, face = "bold"), 
+  legend.text = element_text(size = 11), legend.key = element_blank()) + 
+  scale_fill_continuous(low = "#BFE1B0", high = "#137177") + 
+  scale_y_continuous(expand = c(0,0)) +
+  scale_x_continuous(expand = c(0,0)) 
+
+gg
+```
+
+## Salinity
+```{r}
+library(ncdf4)#the packge for .nc files
+library(rgdal)
+library(lubridate)
+library(mgcv)
+library(effects)
+library(mgcViz)
+library(stringr)
+setwd("/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/Salinity_WODB") # set the working directory to the location of the 
+#setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
+
+```
+
+```{r}
+# Here we retrieve all th temperature CTD data THIS TAKES APPROX 45 min
+filepath = ('/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/Salinity_WODB/CTD_salinity_2023/wod_020179580Ostart.nc')
+output <- nc_open(filepath)
+
+lon <- ncvar_get(output, varid = "lon")
+lat <- ncvar_get(output, varid = 'lat')
+date <- ncvar_get(output, varid = 'date')
+bot_depth <- ncvar_get(output, varid = 'Bottom_Depth')
+depth <- ncvar_get(output, varid = 'z')
+depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+salt <- ncvar_get(output, varid = 'Salinity')
+salt_flag <- ncvar_get(output,varid = 'Salinity_WODflag')
+salt_dataCTD <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'salt' = salt,
+                        'salt_flag' = salt_flag,
+                        'profile_num' = 1)
+nc_close(output)
+```
+
+
+```{r}
+files <- list.files(path="/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/Salinity_WODB/CTD_salinity_2023/", pattern="*O.nc", full.names=TRUE, recursive=TRUE)
+k <- 2
+for(name in files) {
+  output <- nc_open(name)
+  lon <- ncvar_get(output, varid = "lon")
+  lat <- ncvar_get(output, varid = 'lat')
+  date <- ncvar_get(output, varid = 'date')
+  bot_depth<- tryCatch({ncvar_get(output,varid = 'Bottom_Depth')}, error=function(cond) {return(NA)} ) # Note that many of the casts do not have a bottom depth variable, we will deal with this later.
+  depth <- ncvar_get(output, varid = 'z')
+  depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+  salt <- ncvar_get(output, varid = 'Salinity')
+  salt_flag <- ncvar_get(output,varid = 'Salinity_WODflag')
+  salt_data_new <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'salt' = salt,
+                        'salt_flag' = salt_flag,
+                        'profile_num' = k)
+  salt_dataCTD <- rbind(salt_dataCTD, salt_data_new)
+  nc_close(output)
+  k <- k+1
+}
+
+# save as a csv
+write.csv(salt_dataCTD,"WOD_CTD_Dec29_2023SALT.csv")
+```
+
+
+```{r}
+# read the saved csv
+CTD <- read.csv("/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/Salinity_WODB/CTD_salinity_2023/WOD_CTD_Dec29_2023SALT.csv")
+salt_dataCTD <- CTD
+#Check how many temperqture profiles we have (1051 as of Dec5, 2023 for 2019 through 2023)
+max(unique(salt_dataCTD['profile_num']))
+
+#See which data is actually within the NYB
+
+#####load required functions and shapefiles
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/Rfunctions")
+source("LabelPoints.R")
+
+lazylab<-klab(salt_dataCTD$lat, salt_dataCTD$lon) #Label casts that are within the NYB shapefile
+salt_dataCTD_EPU<-data.frame(salt_dataCTD, lazylab) #Combine data and labels into new dataframe
+salt_dataCTD_EPU$EPU<-as.character(salt_dataCTD_EPU$EPU)
+###Label casts not in an EPU
+salt_dataCTD_EPU[is.na(salt_dataCTD_EPU$EPU),"EPU"]<-"Not in NES"
+
+# Subset dataframe for NYB ONLY
+salt_dataCTD_NYB<-salt_dataCTD_EPU[salt_dataCTD_EPU$NYB %in% "NYB" == TRUE,]
+nrow(unique(salt_dataCTD_NYB['profile_num']))
+
+#Remove values that don't meet quality control.  WOD flags ftp://ftp.nodc.noaa.gov/pub/data.nodc/woa/WOD/CODES/PDF/DefinitionQualityFlags.pdf
+
+salt_dataCTD_NYB<- salt_dataCTD_NYB[salt_dataCTD_NYB$depth_flag == 0, ]
+salt_dataCTD_NYB<- salt_dataCTD_NYB[salt_dataCTD_NYB$salt_flag == 0, ]
+nrow(salt_dataCTD_NYB)
+new_col <- rep(NA, 57597) #rep(NA, 642682)
+salt_dataCTD_NYB$seafloor_depth<- new_col #create a new column for the seafloor topography
+salt_dataCTD_NYB$surf_salt<-new_col
+salt_dataCTD_NYB$surf_salt_1m <- new_col
+salt_dataCTD_NYB$bot_S<-new_col
+salt_dataCTD_NYB$bot_S_10m<-new_col
+
+#load seafloor topography
+topo<- nc_open("/Users/nyelab/Downloads/ETOPO1_Bed_g_gmt4(1).grd")
+topolat<- ncvar_get(topo, 'y')
+topolon<- ncvar_get(topo, 'x')
+topo_z<- ncvar_get(topo, 'z')
+
+for(i in unique(salt_dataCTD_NYB$profile_num)) {
+  latitude<- salt_dataCTD_NYB$lat[salt_dataCTD_NYB$profile_num == i]
+  new_lat<- floor(latitude) + 0.01666667*round((latitude - floor(latitude))/0.01666667)
+  y_ind<-  match(round(new_lat, digits = 2), round(topolat, digits = 2))
+  longitude<- salt_dataCTD_NYB$lon[salt_dataCTD_NYB$profile_num == i] *-1
+  new_lon<- (floor(longitude) + 0.01666667*round((longitude - floor(longitude))/0.01666667))*-1
+  x_ind<- match(round(new_lon,digits = 2), round(topolon,digits = 2))
+  salt_dataCTD_NYB$seafloor_depth[salt_dataCTD_NYB$profile_num==i]<- topo_z[x_ind,y_ind]
+}
+
+# Create a new dataframe that will have surface and bottom temperature as well as T at 50m, only if the surface measurement is <= 1meter deep and the bottom is within 10 meters.  T at 50m will be linearly interpolated as long as seafloor_depth>50m
+subset1<- salt_dataCTD_NYB[salt_dataCTD_NYB$profile_num == 12,]
+NYB_ctd<- data.frame(subset1[1,])
+
+NYB_ctd$surf_salt<-subset1$salt[1]
+
+if(subset1$depth[1] <= 1) {
+  NYB_ctd$surf_salt_1m<- subset1$salt[1]
+}
+
+NYB_ctd$bot_S<-tail(subset1$salt,1)
+
+if(subset1$bot_depth[1] >0 ) {
+  if(abs((tail(subset1$bot_depth,1)) - tail(subset1$depth,1)) <=10) {
+  NYB_ctd$bot_S_10m<- tail(subset1$salt,1)
+  } else {
+    NYB_ctd$bot_S_10m<- NA
+  }
+  } else {
+    if(abs(-1*(tail(subset1$seafloor_depth,1)) - tail(subset1$depth,1)) <=10) {
+        NYB_ctd$bot_S_10<- tail(subset1$salt,1)
+        } else {
+          NYB_ctd$bot_S_10<- NA
+        }
+  }
+
+#s50 = approx(subset1$depth,subset1$salt,50,method ='linear', rule =1)
+#NYB_ctd$S_50 = s50$y
+
+
+
+for(i in unique(salt_dataCTD_NYB$profile_num)[2:594]) {
+  cast<- salt_dataCTD_NYB[salt_dataCTD_NYB$profile_num == i,]
+  ctd_cast<- data.frame(cast[1,])
+  ctd_cast$surf_salt<-cast$salt[1]
+  ctd_cast$bot_S<-tail(cast$salt,1)
+  if(cast$depth[1] <= 1) {
+    ctd_cast$surf_salt_1m<- cast$salt[1]
+    } else {
+      ctd_cast$surf_salt_1m <- NA
+    }
+
+if(is.na(cast$bot_depth[1]) == FALSE) {
+  if(abs((tail(cast$bot_depth,1)) - tail(cast$depth,1)) <=10) {
+    ctd_cast$bot_S_10m<- tail(cast$salt,1)
+    } else {
+      ctd_cast$bot_S_10m<- NA
+      }
+  } else {
+    if(abs(-1*(tail(cast$seafloor_depth,1)) - tail(cast$depth,1)) <=10) {
+      ctd_cast$bot_S_10m<- tail(cast$salt,1)
+      } else {
+        ctd_cast$bot_S_10m<- NA
+      }
+    }
+  NYB_ctd <- rbind(NYB_ctd, ctd_cast)
+}
+
+rownames(NYB_ctd)<-1:nrow(NYB_ctd)
+
+write.csv(NYB_ctd,"WOD_CTD_Dec29salinity_2023.csv")
+```
+
+
+
+
+
+
+
+### Create a new dataset for indicator calculation
+
+The following script takes the ragged array netCDF files, and re-formats into a more easily used data.frame to calculate indicators. The basic steps are **(part 1)** use the netCDF connections (con1 and con2) to create a 'list' of data.frames, each storing a 'typical' CTD cast (i.e., first column is depth, next is temp, salinity, etc.) that are easy to work with by indexing. Next, **(part 2)** takes these casts and re-shuffles them into a SINGLE data.frame that contains one row per cast, and the information needed (surf_temp, surf_salin, surf_density,...so on and so forth). **Part 3** labels each of these casts according to their location (i.e., EPU, NYB, node) and **Part 4** writes the file to disck for later use in indicator calculations. 
+
+Running the script takes awhile and may crash your comptuer :).
+
+### Part 1
+Make a data frame that has the cast information; this is a function that will work if you only give it the connection (see above, con1 and con2). It results in a data.frame with the needed info to re-create casts.
+
+
+```{r}
+make_casts<-function(connection){
+ddd<-data.frame(platform = as.vector(ncdf4::ncvar_get(connection, "Platform")),
+                originators_cruise_identifier = as.vector(ncdf4::ncvar_get(connection, "originators_cruise_identifier")),
+                wod_unique_cast = as.vector(ncdf4::ncvar_get(connection, "wod_unique_cast")),
+                Institute = as.vector(ncdf4::ncvar_get(connection, "Institute")),
+                #z_row_size = as.vector(ncdf4::ncvar_get(connection, "z_row_size")),
+                #Temperature_row_size = as.vector(ncdf4::ncvar_get(connection, "Temperature_row_size")),
+                #Salinity_row_size = as.vector(ncdf4::ncvar_get(connection, "Salinity_row_size")),
+                lat = as.vector(ncdf4::ncvar_get(connection, "lat")),
+                lon = as.vector(ncdf4::ncvar_get(connection, "lon")),
+                date = as.Date(as.character(as.vector(ncdf4::ncvar_get(connection, "date"))), format = "%Y%m%d"),
+                bot_depth = as.vector(ncdf4::ncvar_get(connection, "Bottom_Depth"))
+                #Pressure_row_size = as.vector(ncdf4::ncvar_get(connection, "Pressure_row_size"))
+                #barometric_pressure = as.vector(ncdf4::ncvar_get(connection, "Barometric_Pres"))
+)
+ddd[is.na(ddd$z_row_size),"z_row_size"]<-0#needs to be 0 instead of na or cumsum fails below
+ddd[is.na(ddd$Salinity_row_size),"Salinity_row_size"]<-0
+ddd[is.na(ddd$Temperature_row_size),"Temperature_row_size"]<-0
+ddd[is.na(ddd$Pressure_row_size),"Pressure_row_size"]<-0
+
+
+##Add necessary indexes for generating individual CTD cast dataframes
+##This says..for the cast in this row, which section of the vector do I go get my data from...
+ddd$end_indexZ<-cumsum(ddd$z_row_size)#ending index of z
+ddd$start_indexZ<-ddd$end_indexZ-ddd$z_row_size+1#start index of z
+
+ddd$end_indexT<-cumsum(ddd$Temperature_row_size)#ending index of Temperature
+ddd$start_indexT<-ddd$end_indexT-ddd$Temperature_row_size+1#start index of z
+
+ddd$end_indexS<-cumsum(ddd$Salinity_row_size)#ending index of salinity
+ddd$start_indexS<-ddd$end_indexS-ddd$Salinity_row_size+1#start index salinity
+
+ddd$end_indexP<-cumsum(ddd$Pressure_row_size)#ending index of salinity
+ddd$start_indexP<-ddd$end_indexP-ddd$Pressure_row_size+1#start index salinity
+
+
+return(ddd)
+}
+```
+
+
+
+Next we need a function that can create a 'ctd' dataset using the information in in the netcdfs (con1 and con2); for this function it uses ddd and the input is only a single number, telling you what cast in the cast info dataframe (calling it ddd and it MUST be called ddd for function to work)
+
+```{r}
+create.ctd<-function(castN){
+  #castN=1
+  depth = z[ddd[castN,"start_indexZ"]:ddd[castN,"end_indexZ"]]#adds a depth column
+  
+  if(ddd$Temperature_row_size[castN] >0){
+    temp = t[ddd[castN,"start_indexT"]:ddd[castN,"end_indexT"]]}else{
+      temp = NA
+    }
+  
+  if(ddd$Salinity_row_size[castN] >0){
+    salinity = s[ddd[castN,"start_indexS"]:ddd[castN,"end_indexS"]]} else{
+      salinity = NA}
+  
+    if(ddd$Pressure_row_size[castN] >0){
+    pressure = p[ddd[castN,"start_indexP"]:ddd[castN,"end_indexP"]]} else{
+      pressure = NA}
+  
+ tempd<-data.frame(depth,temp,salinity, pressure)
+  density<-rep(NA,nrow(tempd))
+ 
+
+  for(m in 1:nrow(tempd)){
+     if(rowSums(is.na(tempd[1:3]))[m] == 0){
+      density[m]<-swRho(tempd[m,3],tempd[m,2], tempd[m,1])
+    }
+  }
+  tempd$density<-density
+ return(tempd)
+}
+```
+
+
+
+Now use these functions to create a bunch of 'ctd' data frames from the connections.This chunk will take a bit of time to run and is probably a very inefficient way to do this task, but whatever. It works and you only need to do it once.
+
+WIll TAKE ABOUT FIVE MINUTES TO RUN. 
+```{r}
+#####Prepare All data for con1
+con1 <- output
+ddd<-make_casts(con1)
+ctds1<-list()#this is the list that will contain individual CTD casts
+z<-as.vector(ncdf4::ncvar_get(con1, "z"))#get vectors of variables
+t<-as.vector(ncdf4::ncvar_get(con1, "Temperature"))#get vectors of variables
+s<-as.vector(ncdf4::ncvar_get(con1, "Salinity"))#get vectors of variables
+p<-as.vector(ncdf4::ncvar_get(con1, "Pressure"))#get vectors of variables
+
+for(i in 1:nrow(ddd)){
+  ctds1[[i]]<-create.ctd(i)
+  #print(i) #dont do this, was only using so I could troubleshoot
+}
+ddd_con1<-ddd#resave ddd as ddd1 
+###Now you have ctds1 (has a list of ctd data) and ddd_con1 (has the cast info)
+
+ddd<-make_casts(con2)#make cast dataset
+z<-as.vector(ncdf4::ncvar_get(con2, "z"))#get vectors of variables
+t<-as.vector(ncdf4::ncvar_get(con2, "Temperature"))
+s<-as.vector(ncdf4::ncvar_get(con2, "Salinity"))
+p<-as.vector(ncdf4::ncvar_get(con2, "Pressure"))#get vectors of variables
+ctds2<-list()#empty list to store stuff
+
+for(i in 1:nrow(ddd)){
+  ctds2[[i]]<-create.ctd(i)
+  #print(i) dont do this, was only using so I could troubleshoot
+}
+ddd_con2<-ddd
+###Now you have ctds2 (has a list of ctd data) and ddd_con2 (has the cast info)
+```
+
+
+Plot some CTD data to make sure the stuff looks right.
+```{r}
+i=103#which one to do
+plot(ctds2[[i]]$temp, ctds2[[i]]$depth, ylim =c(rev(range(ctds2[[i]]$depth))),
+     type = "b", col = "red", axes = FALSE, xlab = "", ylab = "")
+axis(1);axis(2,las = 2)
+par(new = TRUE)
+plot(ctds2[[i]]$density, ctds2[[i]]$depth, ylim =c(rev(range(ctds2[[i]]$depth))),
+     type = "b", col = "black", axes = FALSE, ylab = "", xlab = "")
+axis(3)
+```
+
+
+## Part 2
+Now you can take these and put them into a single dataframe (one cast per row) and include only the data you want for calculating indicators.
+
+```{r}
+nrow(ddd_con1)#
+length(ctds1)#good same length
+ddd_con1$last_row_depth<-NA#depth of last row in cast i
+ddd_con1$bot_temp<-NA#the temperature of the last row in cast i
+ddd_con1$bot_sal<-NA#the salinity of the last row in cast i
+ddd_con1$bot_den<-NA#the density of the last row in cast i
+ddd_con1$first_row_depth<-NA#depth of first row in cast i
+ddd_con1$surf_temp<-NA#temp of first row in cast i
+ddd_con1$surf_sal<-NA#sal of first row in cast i
+ddd_con1$surf_den<-NA#density of first row in cast i
+
+ddd_con1$c50_depth<-NA#depth of obs closest to 50 m
+ddd_con1$c50_temp<-NA#temp of obs closst to 50 m
+ddd_con1$c50_sal<-NA#salinity of obs closest to 50 m
+ddd_con1$c50_den<-NA#density of obs closest to 50 m
+
+#thecast<-ctds1[[1]]
+
+
+for(i in 1:nrow(ddd_con1)){
+  thecast<-ctds1[[i]]#the cast data
+  c50row<-which.min(abs(thecast$depth - 50))#row index of obs clsoest to 50 m
+  
+  ddd_con1[i,"last_row_depth"]<-thecast[nrow(thecast),"depth"]
+  ddd_con1[i,"bot_temp"]<-thecast[nrow(thecast),"temp"]
+  ddd_con1[i,"bot_sal"]<-thecast[nrow(thecast),"salinity"]
+  ddd_con1[i,"bot_den"]<-thecast[nrow(thecast),"density"]
+  ddd_con1[i,"first_row_depth"]<-thecast[1,"depth"]
+  ddd_con1[i,"surf_temp"]<-thecast[1,"temp"]
+  ddd_con1[i,"surf_sal"]<-thecast[1,"salinity"]
+  ddd_con1[i,"surf_den"]<-thecast[1,"density"]
+  
+  ddd_con1[i, "c50_depth"]<-thecast[c50row, "depth"]
+  ddd_con1[i, "c50_temp"]<-thecast[c50row, "temp"]
+  ddd_con1[i, "c50_sal"]<-thecast[c50row, "salinity"]
+  ddd_con1[i, "c50_den"]<-thecast[c50row, "density"]
+  
+  #print(i)
+}
+#Now ddd_con1 has what you want
+
+#do it for con 2 data
+ddd_con2$last_row_depth<-NA
+ddd_con2$bot_temp<-NA
+ddd_con2$bot_sal<-NA
+ddd_con2$bot_den<-NA
+ddd_con2$first_row_depth
+ddd_con2$surf_temp<-NA
+ddd_con2$surf_sal<-NA
+ddd_con2$surf_den<-NA
+
+
+ddd_con2$c50_depth<-NA#depth of obs closest to 50 m
+ddd_con2$c50_temp<-NA#temp of obs closst to 50 m
+ddd_con2$c50_sal<-NA#salinity of obs closest to 50 m
+ddd_con2$c50_den<-NA#density of obs closest to 50 m
+
+for(i in 1:nrow(ddd_con2)){
+  thecast<-ctds2[[i]]
+  c50row<-which.min(abs(thecast$depth - 50))#row index of obs clsoest to 50 m
+  
+  ddd_con2[i,"last_row_depth"]<-thecast[nrow(thecast),"depth"]
+  ddd_con2[i,"bot_temp"]<-thecast[nrow(thecast),"temp"]
+  ddd_con2[i,"bot_sal"]<-thecast[nrow(thecast),"salinity"]
+  ddd_con2[i,"bot_den"]<-thecast[nrow(thecast),"density"]
+  ddd_con2[i,"first_row_depth"]<-thecast[1,"depth"]
+  ddd_con2[i,"surf_temp"]<-thecast[1,"temp"]
+  ddd_con2[i,"surf_sal"]<-thecast[1,"salinity"]
+  ddd_con2[i,"surf_den"]<-thecast[1,"density"]
+  #print(i)
+  
+  ddd_con2[i, "c50_depth"]<-thecast[c50row, "depth"]
+  ddd_con2[i, "c50_temp"]<-thecast[c50row, "temp"]
+  ddd_con2[i, "c50_sal"]<-thecast[c50row, "salinity"]
+  ddd_con2[i, "c50_den"]<-thecast[c50row, "density"]
+}
+
+finalDDD<-rbind(ddd_con1,ddd_con2)
+```
+
+
+NOTE: Before moving on to part 3 I think its a good idea to write this to disk "finalDDD" and then clear the workspace completely because by this point it is pretty full of shit. 
+
+```{r}
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
+write.csv(finalDDD,"WOD_CTD_format_D50_June24_2020.csv")
+rm(list = ls(all.names = TRUE))#will remove everything in workspace and hidden objects
+```
+
+
+
+
+```{r}
+setwd("/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/TS_WODB_2023/CTD_TS") # set the working directory to the location of the 
+#setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
+
+
+# Here we retrieve all th temperature CTD data THIS TAKES APPROX 45 min
+filepath = ('/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/TS_WODB_2023/CTD_TS/wod_022241585O_start.nc')
+output <- nc_open(filepath)
+
+lon <- ncvar_get(output, varid = "lon")
+lat <- ncvar_get(output, varid = 'lat')
+date <- ncvar_get(output, varid = 'date')
+bot_depth <- ncvar_get(output, varid = 'Bottom_Depth')
+depth <- ncvar_get(output, varid = 'z')
+depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+temp <- ncvar_get(output, varid = 'Temperature')
+temp_flag <- ncvar_get(output,varid = 'Temperature_WODflag')
+salt <- ncvar_get(output, varid = 'Salinity')
+salt_flag <- ncvar_get(output,varid = 'Salinity_WODflag')
+pressure <- ncvar_get(output, varid = 'Pressure')
+ts_dataCTD <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'temp' = temp,
+                        'temp_flag' = temp_flag,
+                        'salt' = salt,
+                        'salt_flag' = salt_flag,
+                        'pressure' = pressure,
+                        'profile_num' = 1)
+nc_close(output)
+
+files <- list.files(path="/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/TS_WODB_2023/CTD_TS/", pattern="*O.nc", full.names=TRUE, recursive=TRUE)
+k <- 2
+for(name in files) {
+  output <- nc_open(name)
+  lon <- ncvar_get(output, varid = "lon")
+  lat <- ncvar_get(output, varid = 'lat')
+  date <- ncvar_get(output, varid = 'date')
+  bot_depth<- tryCatch({ncvar_get(output,varid = 'Bottom_Depth')}, error=function(cond) {return(NA)} ) # Note that many of the casts do not have a bottom depth variable, we will deal with this later.
+  depth <- ncvar_get(output, varid = 'z')
+  depth_flag <- ncvar_get(output, varid = 'z_WODflag') #z WOD flag
+  temp <- ncvar_get(output, varid = 'Temperature')
+  temp_flag <- ncvar_get(output,varid = 'Temperature_WODflag')
+  salt <- ncvar_get(output, varid = 'Salinity')
+salt_flag <- ncvar_get(output,varid = 'Salinity_WODflag')
+pressure <- ncvar_get(output, varid = 'Pressure')
+ts_data_new <- data.frame('lon' = lon,
+                        'lat' = lat,
+                        'date' = date,
+                        'bot_depth' = bot_depth,
+                        'depth' = depth,
+                        'depth_flag' = depth_flag,
+                        'temp' = temp,
+                        'temp_flag' = temp_flag,
+                        'salt' = salt,
+                        'salt_flag' = salt_flag,
+                        'pressure' = pressure,
+                        'profile_num' = k)
+  ts_dataCTD <- rbind(ts_dataCTD, ts_data_new)
+  nc_close(output)
+  k <- k+1
+}
+
+# save as a csv
+write.csv(ts_dataCTD,"WOD_CTD_TS_Jan4_2024.csv")
+```
+
+```{r}
+# read the saved csv
+CTD <- read.csv("/Users/nyelab/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/LOTS OF WOD/WODB_2023/TS_WODB_2023/CTD_TS/WOD_CTD_TS_Jan4_2024.csv")
+ts_dataCTD <- CTD
+#Check how many ts profiles we have (1051 as ofJan4, 2024 for 2019 through 2023)
+max(unique(ts_dataCTD['profile_num']))
+
+#See which data is actually within the NYB
+
+#####load required functions and shapefiles
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/Rfunctions")
+source("LabelPoints.R")
+
+lazylab<-klab(ts_dataCTD$lat, ts_dataCTD$lon) #Label casts that are within the NYB shapefile
+ts_dataCTD_EPU<-data.frame(ts_dataCTD, lazylab) #Combine data and labels into new dataframe
+ts_dataCTD_EPU$EPU<-as.character(ts_dataCTD_EPU$EPU)
+###Label casts not in an EPU
+ts_dataCTD_EPU[is.na(ts_dataCTD_EPU$EPU),"EPU"]<-"Not in NES"
+
+# Subset dataframe for NYB ONLY
+ts_dataCTD_NYB<-ts_dataCTD_EPU[ts_dataCTD_EPU$NYB %in% "NYB" == TRUE,]
+nrow(unique(ts_dataCTD_NYB['profile_num']))
+
+#Remove values that don't meet quality control.  WOD flags ftp://ftp.nodc.noaa.gov/pub/data.nodc/woa/WOD/CODES/PDF/DefinitionQualityFlags.pdf
+
+ts_dataCTD_NYB<- ts_dataCTD_NYB[ts_dataCTD_NYB$depth_flag == 0, ]
+ts_dataCTD_NYB<- ts_dataCTD_NYB[ts_dataCTD_NYB$temp_flag == 0, ]
+ts_dataCTD_NYB<- ts_dataCTD_NYB[ts_dataCTD_NYB$salt_flag == 0, ]
+nrow(ts_dataCTD_NYB)
+new_col <- rep(NA, 57360) #rep(NA, 642682)
+ts_dataCTD_NYB$surf_dens<- new_col #create a new column for the seafloor topography
+ts_dataCTD_NYB$c50_dens<-new_col
+
+test<-ts_dataCTD_NYB[ts_dataCTD_NYB$profile_num==13, ]
+
+c50row<-which.min(abs(test$depth - 50))#row index of obs clsoest to 50 m
+c0row<-which.min(abs(test$depth - 0))#row index of obs clsoest to 50 m
+
+test0 <- test[c0row, ]
+test50 <- test[c50row, ]
+
+dens0 <- swRho(test0$salt, test0$temp, test0$pressure)
+dens50 <- swRho(test50$salt, test50$temp, test50$pressure)
+
+test0$surf_dens <- dens0
+test0$c50_dens <- dens50
+
+strat_df <- test0
+strat_df$depth50 <- test50$depth
+
+for(i in unique(ts_dataCTD_NYB$profile_num)[2:595]) {
+  cast<-ts_dataCTD_NYB[ts_dataCTD_NYB$profile_num==i, ]
+  
+  c50row<-which.min(abs(cast$depth - 50))#row index of obs clsoest to 50 m
+  c0row<-which.min(abs(cast$depth - 0))#row index of obs clsoest to 50 m
+  
+  cast0 <- cast[c0row, ]
+  cast50 <- cast[c50row, ]
+  
+  dens0 <- swRho(cast0$salt, cast0$temp, cast0$pressure)
+  dens50 <- swRho(cast50$salt, cast50$temp, cast50$pressure)
+
+  cast0$surf_dens <- dens0
+  cast0$c50_dens <- dens50
+
+  strat_line <- cast0
+  strat_line$depth50 <- cast50$depth
+  
+  strat_df <- rbind(strat_df, strat_line)
+}
+setwd('/Users/nyelab/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2023')
+write.csv(strat_df, 'strat_wodb_2023.csv')
+# Create a new dataframe that will have surface and bottom temperature as well as T at 50m, only if the surface measurement is <= 1meter deep and the bottom is within 10 meters.  T at 50m will be linearly interpolated as long as seafloor_depth>50m
+subset1<- temp_dataCTD_NYB[temp_dataCTD_NYB$profile_num == 12,]
+NYB_ctd<- data.frame(subset1[1,])
+
+NYB_ctd$surf_temp<-subset1$temp[1]
+
+if(subset1$depth[1] <= 1) {
+  NYB_ctd$surf_temp_1m<- subset1$temp[1]
+}
+
+NYB_ctd$bot_T<-tail(subset1$temp,1)
+
+if(subset1$bot_depth[1] >0 ) {
+  if(abs((tail(subset1$bot_depth,1)) - tail(subset1$depth,1)) <=10) {
+  NYB_ctd$bot_T_10m<- tail(subset1$temp,1)
+  } else {
+    NYB_ctd$bot_T_10m<- NA
+  }
+  } else {
+    if(abs(-1*(tail(subset1$seafloor_depth,1)) - tail(subset1$depth,1)) <=10) {
+        NYB_ctd$bot_T_10<- tail(subset1$temp,1)
+        } else {
+          NYB_ctd$bot_T_10<- NA
+        }
+  }
+
+t50 = approx(subset1$depth,subset1$temp,50,method ='linear', rule =1)
+NYB_ctd$T_50 = t50$y
+
+
+
+for(i in unique(temp_dataCTD_NYB$profile_num)[2:595]) {
+  cast<- temp_dataCTD_NYB[temp_dataCTD_NYB$profile_num == i,]
+  ctd_cast<- data.frame(cast[1,])
+  ctd_cast$surf_temp<-cast$temp[1]
+  ctd_cast$bot_T<-tail(cast$temp,1)
+  if(cast$depth[1] <= 1) {
+    ctd_cast$surf_temp_1m<- cast$temp[1]
+    } else {
+      ctd_cast$surf_temp_1m <- NA
+    }
+
+if(is.na(cast$bot_depth[1]) == FALSE) {
+  if(abs((tail(cast$bot_depth,1)) - tail(cast$depth,1)) <=10) {
+    ctd_cast$bot_T_10m<- tail(cast$temp,1)
+    } else {
+      ctd_cast$bot_T_10m<- NA
+      }
+  } else {
+    if(abs(-1*(tail(cast$seafloor_depth,1)) - tail(cast$depth,1)) <=10) {
+      ctd_cast$bot_T_10m<- tail(cast$temp,1)
+      } else {
+        ctd_cast$bot_T_10m<- NA
+      }
+    }
+  NYB_ctd <- rbind(NYB_ctd, ctd_cast)
+}
+
+rownames(NYB_ctd)<-1:nrow(NYB_ctd)

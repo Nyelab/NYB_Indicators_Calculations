@@ -40,7 +40,7 @@ getallyears<-function(buoy_id){
 
 ###Running the function takes a list of the bouy ID and then years
 ###Like this here below
-end_year<-2022 # designate the end year for last year of data
+end_year<-2023 # designate the end year for last year of data
 
 #here you gotta pick one, then you will need to change a few things below
 #buoy_id1<-list("SDHN4", 2004:end_year)#Sandy Hook, NJ. 2004 to present
@@ -288,4 +288,8 @@ setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Fig
 write.csv(df4_4, "Mean_seasonal_wind_stress_TT_Nov_15_2022.csv")
 write.csv(df4_5, "Mean_seasonal_wind_stress_LI_Nov_15_2022.csv")
 write.csv(df4_2, "Mean_seasonal_wind_stress_NY_Nov_15_2022.csv")
-
+###
+setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2023")
+write.csv(buoy2, "Wind_buoy2_Aug_14_2023.csv")
+write.csv(buoy4, "Wind_buoy4_Aug_14_2023.csv")
+write.csv(buoy5, "Wind_buoy5_Aug_14_2023.csv")

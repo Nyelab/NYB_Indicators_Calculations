@@ -3,8 +3,12 @@ library(oce)
 
 ###I have ~150 .cnv files in this folder
 ###They are ALL of the ones taken from the MEGAFOLDER
-setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CTD_NYOS")
-mypath<-"~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CTD_NYOS"
+#setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CTD_NYOS")
+#mypath<-"~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CTD_NYOS"
+
+### EAch year take the new files from the seawolf
+setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CTD_NYOS/Seawolf_CTD_2023")
+mypath<-"~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CTD_NYOS/Seawolf_CTD_2023"
 
 ###This will generate of LIST of all of the file names it finds in mypath
 CTDfiles<-list.files(mypath)
@@ -85,4 +89,4 @@ for(i in 2:length(CTDfiles)){
 
 
 setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
-write.csv(wolf1, "CTD_seawolf_AUG6.csv")
+write.csv(wolf1, "CTD_seawolf_DEC5_2023.csv")

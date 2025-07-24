@@ -1,0 +1,47 @@
+---
+title: "Bottom_DO"
+author: "laura gruenburg"
+date: '2024-01-09'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load the data
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+#Ask Boashan for any updated bottle data first!
+setwd('/Users/nyelab/Desktop/NYB Indicators/NYB_Indicators_Calculations')
+do <- read.csv('NYOS_niskin_bottle_data_all_20231221.csv')
+bot_do$Station <- as.numeric(bot_do$Station)
+
+bot_do <- unique(bot_do[!is.na(bot_do$Station),]$Station)
+
+bot_do <- do[do$Niskin_Bottle == 1, ]
+
+bottomDO <- bot_do %>% group_by(Cruise) %>%
+  summarise(Year = mean(Year),
+            Month = mean(Month),
+            DO = mean(DO..mg.L.))
+
+season <- c('W', 'Sp','Su', 'F',
+            'W', 'Sp', 'F',
+            'W','Sp',
+            'W','Sp','Su','F',
+            'Sp', 'F'
+            )
+
+bottomDO$Season <- season
+
+#Data from 202006 seems wrong.  We excluded it previously so I will do the same here
+bottomDO <- bottomDO[!bottomDO$Cruise == 'NYOS2006',]
+
+setwd('/Users/nyelab/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2023/')
+write.csv(bottomDO, 'Bottom_DO_2023.csv')
+
+bottomDO

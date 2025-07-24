@@ -1,0 +1,91 @@
+---
+title: "RecreationFishing2022"
+author: "Kurt Heim and laura gruenburg"
+date: "8/31/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Marine Recreational Information Program (MRIP) indicators
+
+NOTE: This is kinda pieced together in an inefficient way; it would be better to aggregate across multiple response variables e.g. aggregage(var 1 var 2 var 4 ~ whatever) instead of doing it seperatly each time, but so it goes. Sorry whoever might read this in the future. 
+
+
+##Importance and use as Indicators
+Recreational fishing is an important socio-economic benefit of the offshore marine ecosystem. Although generally not considered to be as impactful on fish stocks as commercial fishing, the cumulative impacts of recreational fishing can be substantial and often overlooked (Lewin, Arlinghaus, & Mehner, 2006). Therefore, trends in participation (i.e., number of anglers, number of trips) and harvest are important to monitor and can be used as long-term indicators as they pertain to different objectives. Participation provides a measure of the benefits that the ecosystem provides to the public, whereas harvest is an important anthropogenic pressure on the state of the system.
+
+Indicators of recreational fishing used in the annual ESR by NOAA for the Mid-Atlantic include 1) total recreational seafood harvest in the Mid-Atlantic region (n fish caught) 2) recreational effort (days fished) and 3) number of anglers fishing. Additionally, in 2019 new indicators were added to include 4) recreational effort diversity (party/charter boat, private boat, shore based) and 5) species diversity of the recreational catch. Both of these metrics are calculated as the effective Shannon index. Similarly, a recent synthetic paper comparing indicators across marine ecosystems in the USA used total recreational landings per square kilometer (Link & Marshak, 2019).   
+
+##MRIP dataset
+
+The MRIP data are available [here](https://www.st.nmfs.noaa.gov/recreational-fisheries/data-and-documentation/queries/index), it is easiest to go to this site then click on the tab that says "Dowload QUery" GoTo query..itwill give you some downloading options. 
+
+
+
+
+```{r}
+setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/CalculateIndicators/RecreationalFishing/Data")
+catch<-read.csv("mrip_estim_catch_year_1981_2022_oct.csv")##NY All Ocean Merged
+
+######Calculate state means
+tot_harv<-aggregate(cbind(LANDING,ESTREL,LBS_AB1) ~ YEAR, data = catch, FUN = sum)
+tot_harv$tot_caught<-tot_harv$LANDING+tot_harv$ESTREL
+tot_harv$pcnt_release<-tot_harv$ESTREL/tot_harv$tot_caught
+
+
+#Landing are the total number of fish removed from a source
+#ESTREL is number of fish that were caught and released alive
+# LBS_AB1 is total weight of all fish removed from the fishery resource
+
+effort<-read.csv("mrip_estim_effort_1981_2022_oct.csv")##NY All Ocean Merged
+
+tot_effort<-aggregate(ESTRIPS ~ YEAR + MODE, data = effort, FUN = sum)
+
+
+###Format the indicators
+RecHarv_LB<-data.frame(Year = tot_harv$YEAR,
+               Variable = "Rec_HarvLB",
+               Val = tot_harv$LBS_AB1,
+              Loc = "NY",
+               N = "NA")
+
+RecHarv_N<-data.frame(Year = tot_harv$YEAR,
+               Variable = "Rec_HarvN",
+               Val = tot_harv$LANDING,
+              Loc = "NY",
+               N = "NA")
+
+RecCatch_N<-data.frame(Year = tot_harv$YEAR,
+               Variable = "RecCatch_N",
+               Val = tot_harv$tot_caught,
+              Loc = "NY",
+               N = "NA")
+
+RecRelease_N<-data.frame(Year = tot_harv$YEAR,
+               Variable = "RecRelease_N",
+               Val = tot_harv$ESTREL,
+              Loc = "NY",
+               N = "NA")
+
+RecRelease_Pct<-data.frame(Year = tot_harv$YEAR,
+               Variable = "RecRelease_Pct",
+               Val = tot_harv$pcnt_release,
+              Loc = "NY",
+               N = "NA")
+
+RecIndy<-rbind(RecRelease_N,
+      RecRelease_Pct,
+      RecCatch_N,
+      RecHarv_LB,
+      RecHarv_N)
+
+setwd("~/Desktop/NYB Indicators/NyB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2022")
+write.csv(RecIndy, "Recreation_Fishing_2022.csv")
+write.csv(tot_effort, 'Recreational_effort_2022.csv')
+
+```
+
+

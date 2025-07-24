@@ -262,7 +262,25 @@ hud_flowFallCenter<-data.frame(Year = flowdat_hudson$wyear,
 
 flow<-rbind(hud_flowMean, hud_flowMAX, hud_flowSpringCenter, hud_flowFallCenter)
 
-setwd("~/Desktop/NYB Indicators/Final_timeseries")
-write.csv(flow, "RiverFlow_DEC_01_2021.csv") #Don't forget to change the name each year!
+setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2023")
+write.csv(flow, "RiverFlow_DEC_14_2023.csv") #Don't forget to change the name each year!
 
+
+# daily for comparison with Narrows
+gage_id<-"01358000"
+  dat<-importDVs(gage_id, code="00060", stat="00003")
+  #assign water year values and reformat
+  dat$dates<-as.POSIXlt(dat$dates)
+  #dat$wyear<-water_year(dat$dates,origin="usgs")
+  #Here use DAY OF YEAR instead of water year
+  
+  
+  dat$wyear<-year(dat$dates)
+  
+  #remove na vales
+  dat<-subset(dat,val!="NA")
+  #subset for 2023 overlap
+  df <- dat[dat$wyear == 2023, ]
+  setwd("~/Desktop/NYB Indicators/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2023")
+  write.csv(df, "RiverFlow_DEC_14_2023_Daily2023.csv") #Don't forget to change the name each year!
 ```
