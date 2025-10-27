@@ -17,22 +17,31 @@
 
 ## Set working directoryremotes::install_github("NOAA-EDAB/survdat",build_vignettes = TRUE)
 #setwd("C:/Users/beven/Desktop/DEC Indicators")
-setwd("/Users/nyelab/Desktop/NYB Indicators/NYB_Indicators_Calculations/CalculateIndicators/Biological_indicators")
+setwd("/Users/lauragruenburg/Desktop/NYB_Indicators_Calculations/CalculateIndicators/Biological_indicators")
 ## Load libraries, packages and functions
 
-library(data.table); library(rgdal); library(survdat); library(tidyverse); library(ggplot2); library(dplyr); library(readr)
+library(data.table); 
+#library(rgdal); rgdal has been retired I am trying sf instead -LG 9/10/2025
+library(survdat); 
+library(tidyverse); 
+library(ggplot2); 
+library(dplyr); 
+library(readr)
+library(sf)
 
 ## Load Survdat, species list and strata
-
-load('NEFSC_survey_2020_2022.RData')
-load('NEFSC_survey_2022_2023.RData')
+data <- readRDS('surveyData_2025-09-10.rds')
+#load('NEFSC_survey_2020_2022.RData')
+#load('NEFSC_survey_2022_2023.RData')
 load("Species_codes.RData")
-strata<-readOGR('strata','strata')
+strata<-read_sf('strata','strata')
 
-survey2 <- survey$survdat # extract the data from the most updated file
-survey3 <- survdat$survdat #ex
-load("Survdat.RData")
-dt = rbind(survdat[survdat$YEAR < 2020, ], survey2[survey2$YEAR <2022], survey3) # get rid of any over lapping data and merge old and new 
+#survey2 <- survey$survdat # extract the data from the most updated file
+#survey3 <- survdat$survdat #ex
+#load("Survdat.RData")
+#dt = rbind(survdat[survdat$YEAR < 2020, ], survey2[survey2$YEAR <2022], survey3) # get rid of any over lapping data and merge old and new 
+
+dt = data$survdat
 
 ##Calculate mean stratified biomass for FALL and SPRING
 
