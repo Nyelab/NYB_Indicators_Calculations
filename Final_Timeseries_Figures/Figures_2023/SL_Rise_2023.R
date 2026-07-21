@@ -1,4 +1,4 @@
-## Figures for Sea Surface Salinity Seasonally
+## Figures for Sea Level Rise
 
 ## **Laura Gruenburg, lagruenburg@gmail.com**
 

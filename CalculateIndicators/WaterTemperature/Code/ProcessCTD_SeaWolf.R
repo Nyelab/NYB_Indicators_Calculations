@@ -7,8 +7,8 @@ library(oce)
 #mypath<-"~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CTD_NYOS"
 
 ### EAch year take the new files from the seawolf
-setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CTD_NYOS/Seawolf_CTD_2023")
-mypath<-"~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data/CTD_NYOS/Seawolf_CTD_2023"
+setwd("~/Desktop/NYB_Indicators_Calculations/CalculateIndicators/WaterTemperature/Data/CTD_NYOS/")
+mypath<-"~/Desktop/NYB_Indicators_Calculations/CalculateIndicators/WaterTemperature/Data/CTD_NYOS/"
 
 ###This will generate of LIST of all of the file names it finds in mypath
 CTDfiles<-list.files(mypath)
@@ -88,5 +88,5 @@ for(i in 2:length(CTDfiles)){
 
 
 
-setwd("~/Desktop/NYB Indicators/CalculateIndicators/WaterTemperature/Data")
-write.csv(wolf1, "CTD_seawolf_DEC5_2023.csv")
+setwd("~/Desktop/NYB_Indicators_Calculations/CalculateIndicators/WaterTemperature/Data")
+write.csv(wolf1, "CTD_seawolf_NOV5_2025.csv")

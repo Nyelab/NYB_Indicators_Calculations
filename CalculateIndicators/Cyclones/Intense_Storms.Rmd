@@ -1,0 +1,52 @@
+---
+title: "Intense Storms"
+author: "laura gruenburg"
+date: "10/28/2025"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Number of Large Storms Indicator
+
+data from the University of Manitoba
+
+https://canwin-datahub.ad.umanitoba.ca/data/dataset/nsidc-extratropical-cyclone-tracking-cnect/resource/baad0eac-5990-4de7-b23b-f5b5f22aafed University of Manitoba Northern Hemisphere Cyclone Dataset 1950-2022 (updated yearly)
+
+```{r}
+setwd('~/Desktop/NYB_Indicators_Calculations/CalculateIndicators')
+cyclones1 <- read.csv('Cyclones/System13_2E5R_BBox10_202412.csv', header = TRUE)
+cyclones1 <- cyclones1[1, ]
+
+mos <- c('01','02','03','04','05','06','07','08','09','10','11','12')
+
+
+setwd('~/Desktop/NYB_Indicators_Calculations/CalculateIndicators/Cyclones'
+my_files <- list.files(pattern = '\\.csv$')
+cyclones <- lapply(my_files, read.csv)
+all_cyclones<-do.call(rbind, cyclones)
+step1 <- all_cyclones[all_cyclones$lon >= -77, ]
+step2 <- step1[step1$lon <= -67, ]
+step3 <- step2[step2$lat <= 43, ]
+cyclones_nyb <- step3[step3$lat >= 37, ]
+    cyclones1 <- rbind(cyclones1, cyclones_nyb)
+
+```
+```{r}
+cyclones_nyb$strength = 0
+for (i in 1:13631){
+  if (is.na(cyclones_nyb$DsqP[i]) == FALSE){
+    if (cyclones_nyb$DsqP[i] < 15){
+        cyclones_nyb$strength[i] = 1}
+    if (cyclones_nyb$DsqP[i] >= 15){
+        cyclones_nyb$strength[i] = 2}
+  }
+}
+
+cyclones_NYB <- cyclones_nyb[cyclones_nyb$strength > 0, ]
+
+setwd('~/Desktop/NYB_Indicators_Calculations/Final_Timeseries_Figures/Timeseries_Files_2025/')
+write.csv(cyclones_NYB, 'Cyclones_2025.csv')
+```

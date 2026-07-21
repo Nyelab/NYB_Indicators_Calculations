@@ -1,0 +1,288 @@
+---
+title: "Surface_Salinity_2025"
+output: html_document
+date: "2025-11-08"
+---
+
+Load required packages
+```{r}
+
+#library(rgdal)
+library(lubridate)
+library(mgcv)
+library(effects)
+#library(mgcViz)
+library(stringr)
+#####load required functiosn and shapefiles
+setwd("~/Desktop/NYB_Indicators_Calculations/CalculateIndicators/Rfunctions")
+source("LabelPoints_sf.R")
+
+```
+
+Load and combine the wodb and seawolf data
+```{r}
+#######Load the datasets
+#######Load the datasets
+setwd("~/Desktop/NYB_Indicators_Calculations/CalculateIndicators/WaterTemperature/Data")
+ddd<-read.csv("ctd_NYB_allthrough2025.csv", header = TRUE)
+ddd$date<-as.Date(as.character(ddd$date), format = '%Y%m%d')
+ddd$year<-format(ddd$date, format="%Y")
+ddd$data_source<-"WOD"
+
+ddd <- ddd[ddd$NYB == 'NYB', ]
+
+setwd("~/Desktop/NYB_Indicators_Calculations/CalculateIndicators/WaterTemperature/Data")
+sea<-read.csv("CTD_seawolf_NOV5_2025.csv")
+sea$date<-as.Date(sea$date)
+sea$data_source<-"SEAWOLF"
+
+colnames(sea)[12] <- "surf_salt"
+colnames(sea)[8] <- "bot_salt"
+
+common_cols <- intersect(colnames(ddd), colnames(sea))
+ds<-rbind(
+  subset(ddd, select = common_cols), 
+  subset(sea, select = common_cols)
+)
+
+```
+
+
+Format the combined data
+```{r}
+
+#Format date
+ds$date<-as.Date(ds$date)
+ds$year<-year(ds$date)
+ds$day<-yday(ds$date)
+ds$month<-month(ds$date)
+ds$day<-yday(ds$date)
+ds$year_fac<-factor(ds$year)
+
+
+
+#Format date
+ds$date<-as.Date(ds$date)
+ds$year<-year(ds$date)
+ds$day<-yday(ds$date)
+ds$month<-month(ds$date)
+ds$day<-yday(ds$date)
+ds$year_fac<-factor(ds$year)
+
+
+ds <- ds[is.na(ds$lat) == FALSE, ]
+ds <- ds[is.na(ds$lon) == FALSE, ]
+
+###use the function to label
+lazylab<-klab(ds$lat, ds$lon)
+ndf<-data.frame(ds, lazylab)
+ndf$EPU<-as.character(ndf$EPU)
+###Label casts not in an EPU
+ndf[is.na(ndf$EPU),"EPU"]<-"Not in NES"
+
+ndf[ndf$surf_salt<0, 9] <- NA #some values are -99.99 which doesn't make sense - probably a filler for bad/missing data
+ndf[ndf$surf_salt>40, 9] <- NA #some values are 99.99 or over 100 which doesn't make sense - probably a filler for bad/missing data
+
+ndf[ndf$bot_salt<0, 7] <- NA #some values are -99.99 which doesn't make sense - probably a filler for bad/missing data
+ndf[ndf$bot_salt>40, 7] <- NA #some values are 99.99 or over 100 which doesn't make sense - probably a filler for bad/missing data
+
+###remove values that are funky
+hist(ndf$surf_sal)#guess some are pretty fresh
+hist(ndf$bot_sal)#guess some are pretty fresh
+
+```
+
+
+
+#Start Analysis for the NYB
+```{r}
+########ANALYSIS FOR THE NYB##########
+NYB<-ndf[ndf$NYB %in% "NYB" == TRUE,]
+nrow(NYB)##9136 casts
+minN<-10##min number of obs per year (you choose) to retain data for an estimate. 
+ntab<-table(NYB$year_fac)#make a table
+ntab
+remove_these<-names(ntab[ntab < minN])#remove below minN
+###NYB removes data for years with less than minNcasts and is used in analysis
+NYB<-NYB[NYB$year_fac %in% remove_these == FALSE,]
+nrow(NYB)#this is how many casts are used (9135)
+
+
+
+
+######Display Data Density + TRIM
+table(NYB$year)#casts per year for data used in analysis
+table(NYB$year)#cast per year for whole NYB
+#plot of each year with number of casts per month
+par(mfrow=c(2,2))
+yearz<-unique(NYB$year)
+for(i in 1:length(yearz)){
+  #i = 1
+  daYear<-NYB[NYB$year == yearz[i],]
+  barplot(table(daYear$month), main = paste(yearz[i], " ", nrow(daYear)))
+}
+dev.off()
+
+#seawolf data vs. WOD data
+table(NYB$data_source, NYB$year)
+table(NYB$data_source)
+
+```
+
+
+Seasonal
+```{r}
+
+NYB$season <- 'winter'
+
+NYB[NYB$month == 3, ]$season <- 'spring'
+NYB[NYB$month == 4, ]$season <- 'spring'
+NYB[NYB$month == 5, ]$season <- 'spring'
+
+NYB[NYB$month == 6, ]$season <- 'summer'
+NYB[NYB$month == 7, ]$season <- 'summer'
+NYB[NYB$month == 8, ]$season <- 'summer'
+
+NYB[NYB$month == 9, ]$season <- 'autumn'
+NYB[NYB$month == 10, ]$season <- 'autumn'
+NYB[NYB$month == 11, ]$season <- 'autumn'
+
+NYB$season_year <- NYB$year
+NYB[NYB$month == 12, ]$season_year <- NYB[NYB$month == 12, ]$year + 1
+# seasonal bottom temp
+
+table(NYB$season)
+
+# WINTER
+winter <- NYB[NYB$season == 'winter', ]
+NYB_winter<-gam(surf_salt ~ s(lon,lat, k = 100)  +  year_fac,  data = winter)
+summary(NYB_winter)#check out model
+gam.check(NYB_winter)
+par(mfrow = c(1,2))
+plot(NYB_winter)#month effect is interesting
+
+plot(NYB_winter$fitted.values, NYB_winter$y, pch = 19, cex = .3,
+     col = factor(winter$data_source))
+abline(0,1)
+
+regexp <- "[[:digit:]]+"
+index_vals<-NYB_winter$coefficients[grepl("year",names(NYB_winter$coefficients))]
+intercept_winter<- NYB_winter$coefficients[grepl("(Intercept)",names(NYB_winter$coefficients))]
+years<-as.numeric(str_extract(names(index_vals), regexp))
+index_1<-data.frame(years, index_vals)#THe first year of the data is the baseline
+#so need to add in first year as a 0
+indexNYB_winter<-rbind(data.frame(years = min(winter$year, na.rm = TRUE),index_vals = 0), index_1)
+fNYB_winter<-data.frame(Year = indexNYB_winter$years,
+                 Variable = "SurfSal_insitu",
+                 Intercept = intercept_winter,
+                 Val = scale(indexNYB_winter$index_vals, scale = FALSE),
+                 Loc = "NYB",
+                 N = as.vector(table(winter$year)))
+plot(fNYB_winter$Year, scale(fNYB_winter$Val, scale = FALSE), type = "b")
+plot(fNYB_winter$Year,fNYB_winter$Intercept + fNYB_winter$Val, type = "b")
+abline(h = 0)
+abline(v=2003)
+
+# spring
+spring <- NYB[NYB$season == 'spring', ]
+NYB_spring<-gam(surf_salt ~ s(lon,lat, k = 100)  +  year_fac,  data = spring)
+summary(NYB_spring)#check out model
+gam.check(NYB_spring)
+par(mfrow = c(1,2))
+plot(NYB_spring)#month effect is interesting
+
+plot(NYB_spring$fitted.values, NYB_spring$y, pch = 19, cex = .3,
+     col = factor(spring$data_source))
+abline(0,1)
+
+regexp <- "[[:digit:]]+"
+index_vals<-NYB_spring$coefficients[grepl("year",names(NYB_spring$coefficients))]
+intercept_spring<- NYB_spring$coefficients[grepl("(Intercept)",names(NYB_spring$coefficients))]
+years<-as.numeric(str_extract(names(index_vals), regexp))
+index_1<-data.frame(years, index_vals)#THe first year of the data is the baseline
+#so need to add in first year as a 0
+indexNYB_spring<-rbind(data.frame(years = min(spring$year, na.rm = TRUE),index_vals = 0), index_1)
+fNYB_spring<-data.frame(Year = indexNYB_spring$years,
+                        Variable = "SurfSal_insitu",
+                        Intercept = intercept_spring,
+                        Val = scale(indexNYB_spring$index_vals, scale = FALSE),
+                        Loc = "NYB",
+                        N = as.vector(table(spring$year)))
+plot(fNYB_spring$Year, scale(fNYB_spring$Val, scale = FALSE), type = "b")
+plot(fNYB_spring$Year, fNYB_spring$Intercept + fNYB_spring$Val, type = 'b')
+abline(h = 0)
+abline(v=2003)
+
+# summer
+summer <- NYB[NYB$season == 'summer', ]
+NYB_summer<-gam(surf_salt ~ s(lon,lat, k = 100)  +  year_fac,  data = summer)
+summary(NYB_summer)#check out model
+gam.check(NYB_summer)
+par(mfrow = c(1,2))
+plot(NYB_summer)#month effect is interesting
+
+plot(NYB_summer$fitted.values, NYB_summer$y, pch = 19, cex = .3,
+     col = factor(summer$data_source))
+abline(0,1)
+
+regexp <- "[[:digit:]]+"
+index_vals<-NYB_summer$coefficients[grepl("year",names(NYB_summer$coefficients))]
+intercept_summer<- NYB_summer$coefficients[grepl("(Intercept)",names(NYB_summer$coefficients))]
+years<-as.numeric(str_extract(names(index_vals), regexp))
+index_1<-data.frame(years, index_vals)#THe first year of the data is the baseline
+#so need to add in first year as a 0
+indexNYB_summer<-rbind(data.frame(years = min(summer$year, na.rm = TRUE),index_vals = 0), index_1)
+fNYB_summer<-data.frame(Year = indexNYB_summer$years,
+                        Variable = "SurfSal_insitu",
+                        Intercept = intercept_summer,
+                        Val = scale(indexNYB_summer$index_vals, scale = FALSE),
+                        Loc = "NYB",
+                        N = as.vector(table(summer$year)))
+plot(fNYB_summer$Year, scale(fNYB_summer$Val, scale = FALSE), type = "b")
+plot(fNYB_summer$Year, fNYB_summer$Intercept + fNYB_summer$Val, type = "b")
+abline(h = 0)
+abline(v=2003)
+
+# fall
+fall <- NYB[NYB$season == 'autumn', ]
+NYB_fall<-gam(surf_salt ~ s(lon,lat, k = 100)  +  year_fac,  data = fall)
+summary(NYB_fall)#check out model
+gam.check(NYB_fall)
+par(mfrow = c(1,2))
+plot(NYB_fall)#month effect is interesting
+
+plot(NYB_fall$fitted.values, NYB_fall$y, pch = 19, cex = .3,
+     col = factor(fall$data_source))
+abline(0,1)
+
+regexp <- "[[:digit:]]+"
+index_vals<-NYB_fall$coefficients[grepl("year",names(NYB_fall$coefficients))]
+intercept_fall<- NYB_fall$coefficients[grepl("(Intercept)",names(NYB_fall$coefficients))]
+years<-as.numeric(str_extract(names(index_vals), regexp))
+index_1<-data.frame(years, index_vals)#THe first year of the data is the baseline
+#so need to add in first year as a 0
+indexNYB_fall<-rbind(data.frame(years = min(fall$year, na.rm = TRUE),index_vals = 0), index_1)
+fNYB_fall<-data.frame(Year = indexNYB_fall$years,
+                        Variable = "SurfSal_insitu",
+                        Intercept = intercept_fall,
+                        Val = scale(indexNYB_fall$index_vals, scale = FALSE),
+                        Loc = "NYB",
+                        N = as.vector(table(fall$year)))
+plot(fNYB_fall$Year, scale(fNYB_fall$Val, scale = FALSE), type = "b")
+plot(fNYB_fall$Year, fNYB_fall$Intercept + fNYB_fall$Val, type = 'b')
+abline(h = 0)
+abline(v=2003)
+
+fNYB_winter$season<-'winter'
+fNYB_spring$season<-'spring'
+fNYB_summer$season<-'summer'
+fNYB_fall$season<-'fall'
+
+fNYB <- rbind(fNYB_winter, fNYB_spring, fNYB_summer, fNYB_fall)
+
+setwd("~/Desktop/NYB_Indicators_Calculations/Final_timeseries_figures/Timeseries_Files_2025")
+write.csv(fNYB, "SurfSalt_insitu_Nov_8_2025.csv")
+
+
+
+
